@@ -1,4 +1,4 @@
-# APRS Master by IZ2LPN op. Giorgio 1.7.0
+# APRS Master by IZ2LPN op. Giorgio 1.7.3
 
 Riceve i pacchetti APRS (AFSK 1200 baud, AX.25) trasmessi da un beacon, li decodifica e mostra le
 stazioni in tempo reale su una mappa OpenStreetMap nel browser. Si gestisce da un pannello di controllo
@@ -44,7 +44,7 @@ Prerequisiti per sistema:
 ### Con pip
 
 ```
-pip install aprs_mappa-1.7.0-py3-none-any.whl
+pip install aprs_mappa-1.7.3-py3-none-any.whl
 aprs-mappa-gui                 # pannello di controllo
 aprs-mappa --help              # riga di comando
 ```
@@ -367,11 +367,15 @@ Come funziona:
 - insieme ai pacchetti viaggiano lo stato della ricezione, la posizione ricevente e come si presenta
   la stazione (nominativo-SSID, simbolo, commento, apparato): sul portale il ricevitore risulta attivo
   ed è evidenziato sulla mappa come in APRS Master, e la posizione serve per distanze e copertura;
-- alla chiusura il programma tenta un'ultima pubblicazione (al massimo qualche secondo);
+- all'arresto della ricezione e alla chiusura il programma tenta un'ultima pubblicazione (al massimo
+  qualche secondo);
 - i pacchetti dei **file WAV** non vengono pubblicati, perché non sono ricezioni in diretta.
 
-La pubblicazione è indipendente dalla ricezione: resta attiva anche a ricezione ferma, così gli
-arretrati partono comunque e il portale sa che il programma è aperto.
+Si pubblica solo mentre la ricezione è avviata: con la casella spuntata, all'apertura del programma
+non parte nulla finché non premi **Avvia ricezione** (il riquadro dice "Pubblica all'avvio della
+ricezione"). Quando la ricezione si ferma, a mano, a fine file o per un errore, il programma invia i
+pacchetti rimasti in coda insieme allo stato "ferma" e smette di pubblicare. Gli arretrati in coda
+partono al successivo avvio della ricezione.
 
 Da riga di comando:
 ```
@@ -470,8 +474,8 @@ repository GitHub. A ogni push sul ramo `main` e a ogni pull request:
 
 Per pubblicare una versione basta un tag con lo stesso numero di `aprs_mappa/__init__.py`:
 ```
-git tag v1.7.0
-git push origin v1.7.0
+git tag v1.7.3
+git push origin v1.7.3
 ```
 Il workflow crea una release GitHub con eseguibili, wheel e note prese da `CHANGELOG.md`.
 Se il tag non corrisponde alla versione nel codice, la pubblicazione si ferma con un errore.

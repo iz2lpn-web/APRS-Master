@@ -2,6 +2,15 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Una frase che manca resta in italiano. I {nomi} tra graffe vanno lasciati come sono.
 EN: dict[str, str] = {
+    'Invio degli ultimi pacchetti…': 'Sending the last packets…',
+    "Pubblica all'avvio della ricezione": 'Uploads when reception starts',
+    'Indirizzo e chiave compilati dal codice: {url}': 'Address and key filled in from the code: {url}',
+    'Gli appunti sono vuoti: copia prima il codice da Geopin.': 'The clipboard is empty: first copy the code from Geopin.',
+    'Incolla': 'Paste',
+    'Taglia': 'Cut',
+    'Copia': 'Copy',
+    'Seleziona tutto': 'Select all',
+    'Codice riconosciuto: premi Salva e riavvia la ricezione oppure Usa il codice di collegamento.': 'Code recognised: press Save and restart reception or Use the link code.',
     'APRS-IS': 'APRS-IS',
     'Geopin': 'Geopin',
     'LoRa': 'LoRa',

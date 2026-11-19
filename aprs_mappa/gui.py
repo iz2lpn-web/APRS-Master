@@ -154,7 +154,8 @@ class App(tk.Tk):
         self.store.on_rules = lambda rules: self.uiq.put_nowait(("rules", rules))
         self.alerts_unseen = 0
         self.msg_peer: str | None = None
-        self.publisher = None          # geopin.GeopinPublisher se la pubblicazione è attiva
+        self.publisher = None          # geopin.GeopinPublisher, solo a ricezione avviata
+        self._gp_closing: threading.Thread | None = None   # ultimo invio dopo l'arresto
         self._gp_tick = 0
         self.events = self.store.subscribe(maxsize=5000)
         self.logq: queue.Queue = queue.Queue(maxsize=5000)
@@ -177,11 +178,11 @@ class App(tk.Tk):
         self._style()
         self._build()
         self._build_menu()
+        self._entry_menu()
         self._apply_theme()
         self._refresh_devices()
         self._load_cfg()
         self._station_changed()
-        self._geopin_apply(self.cfg)       # pubblica subito anche gli arretrati in coda
         if self.history is not None:
             n = self.store.load_history(self.cfg.history_load_hours)
             if n:
@@ -986,6 +987,28 @@ class App(tk.Tk):
         self.menubar.add_cascade(label=t("Aiuto"), menu=self.menu_help)
         self.config(menu=self.menubar)
 
+    def _entry_menu(self) -> None:
+        """Tasto destro sui campi di testo: Taglia, Copia, Incolla, Seleziona tutto (Tk non lo ha)."""
+        menu = tk.Menu(self, tearoff=0)
+        target: list = [None]
+        for label, ev in ((t("Taglia"), "<<Cut>>"), (t("Copia"), "<<Copy>>"), (t("Incolla"), "<<Paste>>")):
+            menu.add_command(label=label, command=lambda ev=ev: target[0] and target[0].event_generate(ev))
+        menu.add_separator()
+        menu.add_command(label=t("Seleziona tutto"),
+                         command=lambda: target[0] and (target[0].select_range(0, "end"), target[0].icursor("end")))
+
+        def show(e):
+            target[0] = e.widget
+            try:
+                e.widget.focus_set()
+                menu.tk_popup(e.x_root, e.y_root)
+            finally:
+                menu.grab_release()
+        buttons = ("<Button-2>", "<Button-3>") if sys.platform == "darwin" else ("<Button-3>",)
+        for cls in ("TEntry", "Entry", "TCombobox"):
+            for btn in buttons:
+                self.bind_class(cls, btn, show, add="+")
+
     def _set_icon(self) -> None:
         try:
             self._icons = [tk.PhotoImage(file=str(STATIC / f"icona-{n}.png")) for n in (256, 64, 32)]
@@ -1113,21 +1136,46 @@ class App(tk.Tk):
                         selectbackground=p["select"], selectforeground=p["select_fg"])
         self.t_log.tag_configure("err", foreground=p["err"])
         self.t_log.tag_configure("warn", foreground=p["warn"])
-        for m in (self.menubar, self.menu_view, self.menu_help, self.menu_hist,
-                  self.menu_hist_load, self.menu_hist_days, self.menu_map, self.menu_cache):
-            m.configure(bg=p["bg"], fg=p["fg"], activebackground=p["select"],
-                        activeforeground=p["select_fg"], selectcolor=p["fg"])
-        for cb in (self.cb_device, self.cb_rate, self.cb_channel, self.cb_profile, self.cb_stype):
-            try:   # elenco a tendina delle combobox
-                pop = self.tk.call("ttk::combobox::PopdownWindow", cb)
-                self.tk.call(f"{pop}.f.l", "configure", "-background", p["field"], "-foreground", p["fg"],
-                             "-selectbackground", p["select"], "-selectforeground", p["select_fg"])
-            except tk.TclError:
-                pass
+        self._theme_tk_widgets(self)
         self._dark_titlebar(name == "dark")
         self._last_status = None
         self._update_status()
         self._draw_meter()
+
+    def _theme_tk_widgets(self, root) -> None:
+        """Colori dei widget Tk classici che gli stili ttk non raggiungono: tutti i menu (anche quelli
+        aggiunti in seguito e il menu del tasto destro) e gli elenchi a tendina di tutte le combobox,
+        compresi quelli delle finestre di impostazione. Le tendine non ancora aperte prendono i
+        colori dal database delle opzioni."""
+        p = self.pal
+        for pat, val in (("*TCombobox*Listbox.background", p["field"]), ("*TCombobox*Listbox.foreground", p["fg"]),
+                         ("*TCombobox*Listbox.selectBackground", p["select"]),
+                         ("*TCombobox*Listbox.selectForeground", p["select_fg"]),
+                         ("*Menu.background", p["bg"]), ("*Menu.foreground", p["fg"]),
+                         ("*Menu.activeBackground", p["select"]), ("*Menu.activeForeground", p["select_fg"]),
+                         ("*Menu.selectColor", p["fg"])):
+            self.option_add(pat, val)
+
+        def walk(w):
+            yield w
+            for c in w.winfo_children():
+                yield from walk(c)
+        for w in walk(root):
+            if isinstance(w, tk.Menu):
+                try:
+                    w.configure(bg=p["bg"], fg=p["fg"], activebackground=p["select"], activeforeground=p["select_fg"],
+                                selectcolor=p["fg"], disabledforeground=p["disabled"], relief="flat", borderwidth=1)
+                except tk.TclError:
+                    pass
+            elif isinstance(w, ttk.Combobox):
+                try:
+                    pop = self.tk.call("ttk::combobox::PopdownWindow", w)
+                    self.tk.call(f"{pop}.f.l", "configure", "-background", p["field"], "-foreground", p["fg"],
+                                 "-selectbackground", p["select"], "-selectforeground", p["select_fg"])
+                except tk.TclError:
+                    pass
+            elif isinstance(w, tk.Toplevel):
+                w.configure(bg=p["bg"])
 
     def _dark_titlebar(self, dark: bool) -> None:
         """Barra del titolo scura su Windows 10/11 (ignorato altrove)."""
@@ -1356,11 +1404,12 @@ class App(tk.Tk):
             cfg.save()
         except OSError as e:
             logging.warning("Configurazione non salvata: %s", e)
-        self._geopin_apply(cfg)
+        self._geopin_apply(cfg, active=True)
         self.engine.configure(cfg)
         try:
             self.rx.start(cfg)
         except (OSError, RuntimeError) as e:
+            self._geopin_stop()
             messagebox.showerror(t("Impossibile avviare"), tx(str(e)), parent=self)
             return
         self._refresh_station_rows()
@@ -1511,6 +1560,7 @@ class App(tk.Tk):
 
     def _place_dialog(self, dlg) -> None:
         """Misura del contenuto, ridotta allo schermo e centrata sul pannello (sempre visibile)."""
+        self._theme_tk_widgets(dlg)
         sf = getattr(dlg, "_scroll", None)
         if sf is not None:
             cw, ch = sf.content_size()
@@ -1672,18 +1722,24 @@ class App(tk.Tk):
 
     # ------------------------------------------------------------ Geopin
 
-    def _geopin_apply(self, cfg: Config) -> None:
-        """Avvia, riconfigura o ferma il pubblicatore secondo la configurazione."""
+    def _geopin_apply(self, cfg: Config, active: bool | None = None) -> None:
+        """Avvia, riconfigura o ferma il pubblicatore secondo la configurazione. Si pubblica solo a
+        ricezione avviata (active=True quando sta per partire)."""
         from .geopin import GeopinPublisher, publish_url, receiver_status
-        want = (cfg.geopin_enabled and cfg.geopin_url.strip() and cfg.geopin_key.strip())
+        if active is None:
+            active = self.rx.running
+        want = (active and cfg.geopin_enabled and cfg.geopin_url.strip() and cfg.geopin_key.strip())
         p = self.publisher
         if p is not None and want and (p.url, p.key, p.interval_s) == (
                 publish_url(cfg.geopin_url), cfg.geopin_key.strip(), max(1, cfg.geopin_interval_min) * 60):
             self.rx.publisher = p
             return
         if p is not None:
-            p.stop(final=False)
-            self.publisher = self.rx.publisher = None
+            if want:                           # riconfigurato: si riparte subito con i nuovi dati
+                p.stop(final=False)
+                self.publisher = self.rx.publisher = None
+            else:
+                self._geopin_stop()
         if want:
             try:
                 self.publisher = GeopinPublisher(cfg.geopin_url, cfg.geopin_key, cfg.geopin_interval_min,
@@ -1694,6 +1750,18 @@ class App(tk.Tk):
             self.publisher.start()
             self.rx.publisher = self.publisher
             logging.info("Geopin: pubblicazione ogni %d minuti su %s", cfg.geopin_interval_min, self.publisher.url)
+
+    def _geopin_stop(self) -> None:
+        """Ricezione ferma: ultimo invio dei pacchetti rimasti in coda (senza bloccare il pannello),
+        poi la pubblicazione si ferma fino al prossimo avvio."""
+        p = self.publisher
+        self.publisher = self.rx.publisher = None
+        if p is None:
+            return
+        logging.info("Geopin: invio dei pacchetti rimasti e arresto della pubblicazione")
+        self._gp_closing = threading.Thread(target=p.stop, kwargs={"final": True, "timeout": 10},
+                                            daemon=True, name="geopin-stop")
+        self._gp_closing.start()
 
     def _geopin_toggled(self) -> None:
         if self.v_gp_on.get() and not (self.gp_cfg["geopin_url"] and self.gp_cfg["geopin_key"]):
@@ -1735,21 +1803,43 @@ class App(tk.Tk):
         e_code = ttk.Entry(top, textvariable=v_code, width=36)
         e_code.grid(row=0, column=1, sticky="ew")
 
-        def use_code(*_):
+        l_code = ttk.Label(top, style="Hint.TLabel", wraplength=440, justify="left", text=t(
+            "Il codice di collegamento si copia dalla pagina Il mio account di Geopin, quando crei la chiave del ricevitore."))
+        l_code.grid(row=1, column=1, columnspan=2, sticky="w")
+
+        def use_code(*_, text=None):
+            """Il codice si riconosce appena c'è nel campo, comunque sia arrivato (Ctrl+V, menu,
+            tasto centrale, pulsante Incolla), e anche se finisce nel campo dell'indirizzo o della chiave."""
             from .geopin import decode_link
-            d = decode_link(v_code.get())
+            raw = (text if text is not None else v_code.get()).strip()
+            if not raw:
+                return
+            d = decode_link(raw)
             if d is None:
-                if v_code.get().strip():
-                    messagebox.showerror(t("Geopin"), t("Codice di collegamento Geopin non valido."), parent=dlg)
+                if raw.lower().startswith("geopin1:") and text is None:
+                    l_code.configure(text=t("Codice di collegamento Geopin non valido."), foreground=self.pal["err"])
                 return
             v_url.set(d[0])
             v_key.set(d[1])
-            v_code.set("")
-        ttk.Button(top, text=t("Usa"), command=use_code).grid(row=0, column=2, padx=(6, 0))
+            if v_code.get():
+                v_code.set("")
+            l_code.configure(text=t("Indirizzo e chiave compilati dal codice: {url}", url=d[0]), foreground=self.pal["ok"])
+
+        def paste_code():
+            try:
+                clip = dlg.clipboard_get()
+            except tk.TclError:
+                clip = ""
+            if clip.strip():
+                v_code.set(clip.strip())
+            else:
+                l_code.configure(text=t("Gli appunti sono vuoti: copia prima il codice da Geopin."), foreground=self.pal["err"])
+        ttk.Button(top, text=t("Incolla"), command=paste_code).grid(row=0, column=2, padx=(6, 0))
+        v_code.trace_add("write", lambda *a: dlg.after_idle(use_code))
+        for var in (v_url, v_key):           # codice incollato per sbaglio nell'indirizzo o nella chiave
+            var.trace_add("write", lambda *a, var=var: var.get().strip().lower().startswith("geopin1:")
+                          and dlg.after_idle(lambda: use_code(text=var.get())))
         e_code.bind("<Return>", use_code)
-        e_code.bind("<<Paste>>", lambda e: dlg.after(50, use_code))
-        ttk.Label(top, text=t("Il codice di collegamento si copia dalla pagina Il mio account di Geopin, quando crei la chiave del ricevitore."),
-                  style="Hint.TLabel", wraplength=440, justify="left").grid(row=1, column=1, columnspan=2, sticky="w")
         ttk.Separator(top).grid(row=2, column=0, columnspan=3, sticky="ew", pady=(10, 0))
         ttk.Label(frm, text=t("Indirizzo del portale")).grid(row=0, column=0, sticky="w", padx=(0, 8))
         ttk.Entry(frm, textvariable=v_url, width=44).grid(row=0, column=1, sticky="w")
@@ -1987,6 +2077,10 @@ class App(tk.Tk):
             self.configure(cursor="watch")
             self.update_idletasks()
             self.publisher.stop(final=True, timeout=8)      # invia ciò che è rimasto in coda
+        if self._gp_closing is not None and self._gp_closing.is_alive():
+            self.configure(cursor="watch")
+            self.update_idletasks()
+            self._gp_closing.join(8)
         self.store.unsubscribe(self.events)
         self.engine.close()
         self.web.stop()
@@ -2112,6 +2206,8 @@ class App(tk.Tk):
             self.dot.itemconfigure(self.dot_id, fill=color)
         if running != self.was_running:
             self.was_running = running
+            if not running:                    # fermata a mano, fine del file WAV o errore
+                self._geopin_stop()
             self.b_start.configure(text=t("Ferma ricezione") if running else t("Avvia ricezione"))
             self._apply_states()
         self.l_counts["packets"].configure(text=str(self.shown_packets))
@@ -2153,8 +2249,10 @@ class App(tk.Tk):
 
     def _update_geopin(self) -> None:
         p = self.publisher
+        closing = self._gp_closing is not None and self._gp_closing.is_alive()
         if p is None:
-            txt = t("Non attiva")
+            txt = (t("Invio degli ultimi pacchetti…") if closing else
+                   t("Pubblica all'avvio della ricezione") if self.v_gp_on.get() else t("Non attiva"))
         else:
             txt = tx(p.status)
             pend = p.pending

@@ -1,5 +1,30 @@
 # Registro delle modifiche
 
+## 1.7.3 (novembre 2026)
+
+- Geopin: si pubblica solo a ricezione avviata. Prima, con la casella spuntata, il programma
+  pubblicava già all'apertura, anche senza aver avviato la ricezione. Ora la pubblicazione parte con
+  **Avvia ricezione** e si ferma quando la ricezione si ferma (a mano, a fine file WAV o per un
+  errore), dopo aver inviato i pacchetti rimasti; l'ultimo invio non blocca il pannello. Lo stesso
+  dalla riga di comando; il servizio si comportava già così
+
+## 1.7.2 (novembre 2026)
+
+- Corretto: alcuni menu a discesa restavano chiari nel tema scuro (o scuri nel chiaro): Lingua,
+  Strumenti, il menu del tasto destro e gli elenchi a tendina delle finestre di impostazione (Geopin,
+  LoRa, regole degli avvisi). Ora il tema si applica a tutti i menu e a tutte le tendine, anche a
+  quelli delle finestre aperte dopo e quando si cambia tema a programma aperto. Su Windows e macOS
+  la barra dei menu in alto resta quella del sistema, che non si può colorare
+
+## 1.7.1 (novembre 2026)
+
+- Corretto: nella finestra Geopin il codice di collegamento incollato restava nel campo senza
+  compilare indirizzo e chiave. Ora si riconosce appena è nel campo, comunque sia stato incollato
+  (Ctrl+V, tasto destro, tasto centrale del mouse), anche se finisce per sbaglio nel campo
+  dell'indirizzo o della chiave, e una riga verde conferma l'indirizzo compilato. Nuovo pulsante
+  **Incolla** accanto al campo. Lo stesso nel pannello web
+- Tasto destro sui campi di testo del pannello: Taglia, Copia, Incolla, Seleziona tutto
+
 ## 1.7.0 (novembre 2026)
 
 - **Messaggi APRS**: ricezione dei messaggi per la propria stazione con conferma automatica, invio

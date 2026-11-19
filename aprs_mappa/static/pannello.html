@@ -275,6 +275,12 @@ $("cfg").addEventListener("submit", async e => {
   c._start = true;
   if (await act({ action: "save", config: c, restart: true })) fillForm();
 });
+// il codice si applica da solo appena incollato (anche se finisce nel campo dell'indirizzo o della chiave)
+const isCode = v => /^\s*geopin1:[A-Za-z0-9_-]{16,}\s*$/i.test(v);
+$("gpCode").addEventListener("input", () => { if (isCode($("gpCode").value)) $("gpApply").click(); });
+for (const n of ["geopin_url", "geopin_key"]) $("cfg")[n].addEventListener("input", e => {
+  if (isCode(e.target.value)) { $("gpCode").value = e.target.value.trim(); e.target.value = ""; $("gpApply").click(); }
+});
 $("gpApply").addEventListener("click", async () => {
   const code = $("gpCode").value.trim();
   if (!code) return;

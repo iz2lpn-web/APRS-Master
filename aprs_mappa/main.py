@@ -419,6 +419,10 @@ def main() -> None:
     try:
         while rx.running:
             time.sleep(0.5)
+        if publisher is not None:              # ricezione finita: si pubblica solo mentre è attiva
+            log.info("Geopin: invio dei pacchetti rimasti…")
+            publisher.stop(final=True)
+            publisher = rx.publisher = None
         if rx.finished_wav:
             log.info("La mappa resta disponibile (Ctrl+C per uscire)")
             threading.Event().wait()

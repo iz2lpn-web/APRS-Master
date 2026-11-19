@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-__version__ = "1.7.0"
+__version__ = "1.7.3"
 APP_NAME = "APRS Master by IZ2LPN op. Giorgio"
 COPYRIGHT = "Copyright (C) 2026 IZ2LPN op. Giorgio"
 LICENSE_NAME = "GNU GPL v3 o successiva (GPL-3.0-or-later)"
