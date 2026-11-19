@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- APRS Master by IZ2LPN op. Giorgio - icona del programma. GPL-3.0-or-later -->
+  <defs>
+    <linearGradient id="fondo" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#253a45"/>
+      <stop offset="1" stop-color="#142027"/>
+    </linearGradient>
+    <linearGradient id="pin" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f4bd3c"/>
+      <stop offset="1" stop-color="#d98e15"/>
+    </linearGradient>
+  </defs>
+  <rect x="16" y="16" width="480" height="480" rx="120" fill="url(#fondo)" stroke="#46636f" stroke-width="6"/>
+  <g fill="none" stroke="#e8efec" stroke-linecap="round">
+    <path d="M163.7 181.8 A150 150 0 0 1 348.3 181.8" stroke-width="46" opacity="1"/>
+    <path d="M116.9 121.9 A226 226 0 0 1 395.1 121.9" stroke-width="46" opacity="0.7"/>
+  </g>
+  <path d="M256.0 482.0 L170.7 359.4 A104 104 0 1 1 341.3 359.4 Z" fill="url(#pin)"/>
+  <circle cx="256" cy="300" r="38" fill="#172329"/>
+</svg>

@@ -1,0 +1,16 @@
+[Unit]
+Description=APRS Master (ricevitore APRS, mappa e pannello web)
+After=network-online.target sound.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+SupplementaryGroups=audio dialout
+ExecStart=/home/pi/.local/bin/aprs-mappa --servizio --config /home/pi/.aprs_mappa.json
+Restart=on-failure
+RestartSec=10
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target

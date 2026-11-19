@@ -1,0 +1,1601 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>APRS Master by IZ2LPN op. Giorgio</title>
+<link rel="icon" type="image/svg+xml" href="/icona.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="/icona-32.png">
+<link rel="apple-touch-icon" href="/icona-256.png">
+<link rel="stylesheet" href="/static/leaflet/leaflet.css">
+<link rel="stylesheet" href="/static/markercluster/MarkerCluster.css">
+<link rel="stylesheet" href="/static/grafici.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@400;500;600&family=JetBrains+Mono:wght@400&display=swap">
+<style>
+:root {
+  --panel: #edf1ef;
+  --panel-2: #e2e8e5;
+  --ink: #1d2b33;
+  --muted: #5b6b73;
+  --line: #c9d3cf;
+  --signal: #e0a21b;
+  --ok: #2f8a57;
+  --warn: #b5432f;
+  --sel: #d6e3f2;
+  --link: #2459a6;
+  --font: "Barlow Semi Condensed", "Arial Narrow", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --panel: #1a2328; --panel-2: #222d33; --ink: #e3eae7; --muted: #93a3a9;
+    --line: #34434a; --sel: #26405a; --link: #7fb0ee;
+  }
+  :root:not([data-theme="light"]) .leaflet-tile-pane { filter: brightness(.82) contrast(1.05) saturate(.8); }
+}
+:root[data-theme="dark"] {
+  --panel: #1a2328; --panel-2: #222d33; --ink: #e3eae7; --muted: #93a3a9;
+  --line: #34434a; --sel: #26405a; --link: #7fb0ee;
+}
+:root[data-theme="dark"] .leaflet-tile-pane { filter: brightness(.82) contrast(1.05) saturate(.8); }
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; font-family: var(--font); color: var(--ink); background: var(--panel); }
+body { display: grid; grid-template-columns: minmax(0, 1fr) 370px; height: 100vh; overflow: hidden; }
+#mapwrap { position: relative; min-height: 0; }
+#map { height: 100%; }
+#map.picking { cursor: crosshair; }
+[hidden] { display: none !important; }
+:focus-visible { outline: 2px solid var(--signal); outline-offset: 2px; }
+button, select, input, textarea { font: inherit; }
+
+/* riquadri sopra la mappa */
+.box {
+  position: absolute; z-index: 1000; background: var(--panel); color: var(--ink); border: 1px solid var(--line);
+  border-radius: 6px; padding: 12px 14px 14px; box-shadow: 0 8px 28px rgba(0,0,0,.22);
+}
+.box h2 { margin: 0; font-size: 1.15rem; font-weight: 600; }
+.box-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.box button, .tools button, .pane button, .pane select, .pane input, .pane textarea, .box select, .box input {
+  font-size: .95rem; padding: 4px 12px; border-radius: 4px; cursor: pointer;
+  background: var(--panel-2); color: var(--ink); border: 1px solid var(--line);
+}
+.pane input, .pane textarea, .box input { cursor: text; }
+button.primary { background: #2459a6 !important; border-color: #2459a6 !important; color: #fff !important; font-weight: 600; }
+button:disabled { opacity: .5; cursor: default; }
+button.x { padding: 0 9px !important; font-size: 1.2rem !important; line-height: 1.4; }
+.linkbtn { background: none !important; border: 0 !important; padding: 0 !important; color: var(--link) !important;
+  text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+
+/* modalità scelta della posizione ricevente */
+#pick { top: 12px; left: 56px; width: min(390px, calc(100% - 68px)); max-height: calc(100% - 24px); overflow-y: auto; padding: 14px 16px 16px; }
+#pick h2 { margin: 0 0 4px; font-size: 1.2rem; }
+#pick p { margin: 0 0 10px; color: var(--muted); line-height: 1.35; }
+#pickSearch { display: flex; gap: 6px; }
+#pickSearch input { flex: 1; min-width: 0; font-size: 1rem; padding: 6px 9px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 4px; color: var(--ink); }
+#pick button { font-size: 1rem; padding: 6px 12px; }
+#pickResults { list-style: none; margin: 8px 0 0; padding: 0; }
+#pickResults button { width: 100%; text-align: left; margin-bottom: 4px; line-height: 1.3; }
+#pickMsg:empty { display: none; }
+#pickMsg { margin-top: 8px !important; }
+.pick-coords { margin: 12px 0; padding: 9px 11px; background: var(--panel-2); border-radius: 4px;
+  font-variant-numeric: tabular-nums; display: flex; justify-content: space-between; gap: 10px; }
+.pick-coords b { font-weight: 600; }
+.pick-actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+#pick button.link { background: none; border: 0; padding: 6px 0 0; color: var(--ink); text-decoration: underline; text-underline-offset: 3px; font-size: .98rem; }
+.pick-mk { width: 26px; height: 26px; border-radius: 50%; border: 3px solid var(--signal);
+  background: rgba(224,162,27,.18); position: relative; box-shadow: 0 0 0 2px rgba(255,255,255,.8); }
+.pick-mk::after { content: ""; position: absolute; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px; border-radius: 50%; background: var(--signal); }
+
+#cov { left: 12px; bottom: 28px; width: min(340px, calc(100% - 24px)); }
+#cov label { display: flex; gap: 8px; align-items: center; margin: 8px 0; }
+#cov .legend { list-style: none; padding: 0; margin: 6px 0; font-size: .92rem; }
+#cov .legend li { display: flex; align-items: center; gap: 8px; margin: 3px 0; }
+#cov .legend i { width: 14px; height: 14px; border-radius: 2px; opacity: .8; flex: none; }
+#cov .legend i.line { height: 0; border-top: 2px dashed #2459a6; border-radius: 0; }
+#covText { margin: 6px 0 0; color: var(--muted); line-height: 1.35; font-size: .95rem; }
+
+#wxp, #tlmp { left: 12px; bottom: 28px; top: 60px; width: min(440px, calc(100% - 24px)); overflow-y: auto; }
+#wxp h3, #tlmp h3 { margin: 12px 0 2px; font-size: .98rem; font-weight: 600; }
+.sub { margin: 2px 0 0; color: var(--muted); font-size: .95rem; }
+.now { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 8px 0 0; font-size: .95rem; }
+.now b { font-variant-numeric: tabular-nums; }
+.wxhours { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+.wxhours button[aria-pressed="true"] { background: var(--sel); }
+.tlm-table { border-collapse: collapse; margin-top: 8px; font-size: .95rem; }
+.tlm-table td { padding: 2px 12px 2px 0; font-variant-numeric: tabular-nums; }
+.tlm-table td:first-child { color: var(--muted); }
+.bits { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.bits span { border: 1px solid var(--line); border-radius: 3px; padding: 0 6px; font-size: .88rem; }
+.bits span.on { background: var(--sel); border-color: var(--link); }
+
+#toast { position: absolute; z-index: 1100; left: 50%; bottom: 28px; transform: translateX(-50%); max-width: calc(100% - 24px);
+  background: var(--ink); color: var(--panel); padding: 9px 16px; border-radius: 4px; font-size: 1rem; }
+#toast.alert { background: #8f2f1f; color: #fff; font-weight: 600; }
+
+.replay { position: absolute; z-index: 1000; top: 10px; left: 56px; right: 12px; display: flex; align-items: center; gap: 10px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; box-shadow: 0 4px 16px rgba(0,0,0,.2); }
+.replay button, .replay select { padding: 3px 10px; border-radius: 4px; cursor: pointer; background: var(--panel-2); color: var(--ink); border: 1px solid var(--line); }
+.replay #rpPlay { min-width: 44px; font-weight: 700; }
+.replay input[type=range] { flex: 1; min-width: 60px; accent-color: var(--signal); }
+.replay output { font-variant-numeric: tabular-nums; white-space: nowrap; font-weight: 600; min-width: 8.5em; }
+#zonePickHint { top: 12px; left: 56px; padding: 8px 12px; }
+
+aside { display: flex; flex-direction: column; min-height: 0; min-width: 0; border-left: 1px solid var(--line); }
+aside > header, aside > nav, .pane > .tools, .pane > #fltBox { flex-shrink: 0; }
+header { padding: 14px 16px 10px; border-bottom: 1px solid var(--line); }
+h1 { margin: 0 0 6px; font-size: 1.35rem; font-weight: 600; letter-spacing: .01em; }
+h1 .by { display: block; font-size: .98rem; font-weight: 500; color: var(--muted); letter-spacing: 0; margin-top: 1px; }
+.status { display: flex; gap: 14px; flex-wrap: wrap; font-size: .95rem; color: var(--muted); }
+.status b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+.status.cmp { margin-top: 4px; gap: 4px 14px; }
+.dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--warn); margin-right: 6px; vertical-align: 1px; }
+.dot.on { background: var(--ok); }
+
+nav.tabs { display: flex; border-bottom: 1px solid var(--line); }
+nav.tabs button { flex: 1; background: none; border: 0; border-bottom: 3px solid transparent; padding: 9px 6px 7px; cursor: pointer;
+  color: var(--muted); font-size: 1rem; font-weight: 600; }
+nav.tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--signal); }
+.badge { display: inline-block; min-width: 1.4em; padding: 0 5px; margin-left: 5px; border-radius: 9px; background: var(--warn);
+  color: #fff; font-size: .8rem; line-height: 1.45; font-variant-numeric: tabular-nums; }
+.badge:empty { display: none; }
+.pane { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+
+.tools { display: flex; gap: 8px; padding: 10px 16px; border-bottom: 1px solid var(--line); align-items: center; flex-wrap: wrap; }
+.tools2 { padding-top: 0; }
+.tools .sp { flex: 1; }
+.tools input[type=search] { flex: 1; min-width: 0; font-size: 1rem; padding: 6px 9px; color: var(--ink);
+  background: var(--panel-2); border: 1px solid var(--line); border-radius: 4px; }
+.tools label { font-size: .95rem; white-space: nowrap; display: flex; gap: 5px; align-items: center; cursor: pointer; }
+.tools button[aria-pressed="true"], .tools button[aria-expanded="true"] { background: var(--sel); }
+
+#fltBox { padding: 4px 16px 10px; border-bottom: 1px solid var(--line); font-size: .95rem; }
+#fltBox fieldset { border: 0; padding: 0; margin: 6px 0 0; display: flex; flex-wrap: wrap; gap: 4px 12px; }
+#fltBox legend { color: var(--muted); padding: 0; margin-bottom: 2px; font-size: .9rem; }
+#fltBox label { display: flex; gap: 5px; align-items: center; cursor: pointer; white-space: nowrap; }
+#fltBox label small { color: var(--muted); font-variant-numeric: tabular-nums; }
+#fltBox .fltfoot { display: flex; justify-content: space-between; margin-top: 8px; }
+#fltN { font-weight: 600; }
+
+#stations { flex: 1; overflow-y: auto; margin: 0; padding: 0; list-style: none; }
+#stations li { display: grid; grid-template-columns: 26px 1fr auto; gap: 2px 10px; padding: 9px 16px; border-bottom: 1px solid var(--line); cursor: pointer; }
+#stations li:hover { background: var(--panel-2); }
+#stations li.sel { background: var(--sel); }
+#stations li.stale { opacity: .55; }
+#stations li.emerg { box-shadow: inset 4px 0 0 #c22; }
+.call { font-weight: 600; font-size: 1.08rem; }
+.age { font-size: .9rem; color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
+.meta { grid-column: 2 / 4; font-size: .92rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.meta span + span::before { content: "  /  "; color: var(--line); }
+.orig { font-size: .8rem; padding: 0 5px; border-radius: 3px; border: 1px solid var(--line); margin-left: 6px; vertical-align: 2px; font-weight: 500; }
+.orig.is { border-style: dashed; color: var(--muted); }
+.orig.lora { border-color: #8a5cc4; }
+.empty { padding: 22px 16px; color: var(--muted); font-size: 1rem; line-height: 1.4; }
+
+details.logbox { border-top: 1px solid var(--line); max-height: 38%; display: flex; flex-direction: column; flex-shrink: 0; }
+details.logbox summary { padding: 10px 16px; cursor: pointer; font-weight: 600; }
+#log { overflow-y: auto; padding: 0 16px 12px; font-family: var(--mono); font-size: .74rem; line-height: 1.45; max-height: 28vh; }
+#log div { white-space: pre-wrap; word-break: break-all; padding: 2px 0; border-bottom: 1px dotted var(--line); }
+#log time { color: var(--muted); margin-right: 6px; }
+#log .tag { font-size: .68rem; padding: 0 4px; margin-right: 5px; border: 1px solid var(--line); border-radius: 3px; color: var(--muted); }
+#log .tag.lora { border-color: #8a5cc4; color: #8a5cc4; }
+
+/* messaggi */
+.scroll { flex: 1; overflow-y: auto; min-height: 0; }
+.note { margin: 10px 16px; padding: 8px 10px; background: var(--panel-2); border-radius: 4px; color: var(--muted); font-size: .95rem; line-height: 1.35; }
+.note.warn { border-left: 3px solid var(--warn); }
+.conv { list-style: none; margin: 0; padding: 0; }
+.conv li { padding: 9px 16px; border-bottom: 1px solid var(--line); cursor: pointer; display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; }
+.conv li:hover { background: var(--panel-2); }
+.conv li.unread .call::after { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--warn); margin-left: 7px; vertical-align: 2px; }
+.conv .last { grid-column: 1 / 3; color: var(--muted); font-size: .93rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.thread { padding: 10px 16px; display: flex; flex-direction: column; gap: 8px; }
+.bub { max-width: 85%; padding: 6px 10px; border-radius: 8px; line-height: 1.35; background: var(--panel-2); border: 1px solid var(--line); word-wrap: break-word; }
+.bub.out { align-self: flex-end; background: var(--sel); }
+.bub small { display: block; color: var(--muted); font-size: .8rem; margin-top: 2px; font-variant-numeric: tabular-nums; }
+.bub small .st-ok { color: var(--ok); font-weight: 600; }
+.bub small .st-bad { color: var(--warn); font-weight: 600; }
+.thead { display: flex; align-items: center; gap: 8px; padding: 8px 16px; border-bottom: 1px solid var(--line); flex-shrink: 0; }
+.thead b { flex: 1; font-size: 1.08rem; }
+form.compose { border-top: 1px solid var(--line); padding: 10px 16px 12px; display: grid; gap: 6px; flex-shrink: 0; }
+form.compose .row { display: flex; gap: 6px; align-items: center; }
+form.compose input[name=to] { width: 9.5em; text-transform: uppercase; }
+form.compose textarea { width: 100%; resize: vertical; min-height: 2.6em; }
+form.compose .cnt { color: var(--muted); font-size: .85rem; font-variant-numeric: tabular-nums; flex: 1; }
+.subtabs { display: flex; gap: 6px; padding: 8px 16px; border-bottom: 1px solid var(--line); flex-shrink: 0; }
+.subtabs button[aria-pressed="true"] { background: var(--sel); }
+.heard li { cursor: default; }
+
+/* avvisi */
+.alerts { list-style: none; margin: 0; padding: 0; }
+.alerts li { padding: 8px 16px; border-bottom: 1px solid var(--line); display: grid; grid-template-columns: 22px 1fr auto; gap: 2px 8px; cursor: pointer; }
+.alerts li:hover { background: var(--panel-2); }
+.alerts li.critical { background: rgba(194,34,34,.12); font-weight: 600; }
+.alerts .ic { font-size: 1rem; line-height: 1.3; }
+.alerts time { color: var(--muted); font-size: .88rem; font-variant-numeric: tabular-nums; }
+.rules { padding: 10px 16px; display: grid; gap: 8px; border-bottom: 1px solid var(--line); max-height: 58vh; overflow-y: auto; flex-shrink: 0; }
+.rules label { display: grid; gap: 3px; font-size: .95rem; }
+.rules label.chk { display: flex; gap: 6px; align-items: center; }
+.rules small { color: var(--muted); }
+.rules input[type=text], .rules input[type=number] { width: 100%; }
+.zones { display: grid; gap: 6px; }
+.zone { display: grid; grid-template-columns: 1fr 5.5em auto; gap: 4px 6px; padding: 6px; border: 1px solid var(--line); border-radius: 4px; }
+.zone input[data-f=calls] { grid-column: 1 / 4; }
+.zone .zc { grid-column: 1 / 4; color: var(--muted); font-size: .85rem; font-variant-numeric: tabular-nums; }
+.rules .acts { display: flex; gap: 8px; justify-content: space-between; flex-wrap: wrap; }
+
+/* simboli APRS dagli sprite di hessu/aprs-symbols (24 px, griglia 16x6) */
+.sym { width: 24px; height: 24px; position: relative; background-repeat: no-repeat; }
+.sym i { position: absolute; inset: 0; background-repeat: no-repeat; }
+.mk { display: flex; align-items: center; gap: 3px; }
+/* etichette leggibili su qualunque mappa, anche nel tema scuro: fondo pieno e testo scuro */
+.mk .lbl { font: 600 13.5px/1.25 var(--font); letter-spacing: .02em; color: #14212a; background: #fff;
+  padding: 1px 5px; border-radius: 3px; white-space: nowrap; border: 1px solid #4c5d66; box-shadow: 0 1px 3px rgba(0,0,0,.35); }
+.mk .lbl .ssid { color: #1d4f9a; font-weight: 700; }
+.mk .lbl .wxt { color: #8a4b08; font-weight: 600; margin-left: 4px; }
+.mk:hover .lbl { border-color: #14212a; }
+.mk.nolbl .lbl { display: none; }
+.mk.nolbl:hover .lbl { display: inline; position: relative; z-index: 2; }
+.nolabels .mk:not(.own) .lbl { display: none; }
+.nolabels .mk:not(.own):hover .lbl { display: inline; position: relative; z-index: 2; }
+.mk.lora .lbl { border: 2px solid #7a4bb8; padding: 0 4px; }
+.mk.is .sym { opacity: .6; }
+.mk.is .lbl { border: 1px dashed #4c5d66; color: #3a4a52; font-weight: 500; box-shadow: none; }
+.mk.emerg .lbl { background: #c22; color: #fff; border-color: #800; }
+.mk.emerg .sym::before { content: ""; position: absolute; inset: -7px; border-radius: 50%; border: 3px solid #c22; animation: pulse 1.2s ease-in-out infinite; }
+@keyframes pulse { 50% { transform: scale(1.35); opacity: .3; } }
+.mk.own { gap: 5px; }
+.mk.own .lbl { border: 2px solid #c98a10; padding: 1px 6px; font-weight: 700; font-size: 14px; }
+.mk.fresh .sym::after { content: ""; position: absolute; inset: -6px; border-radius: 50%; border: 2px solid var(--signal); animation: ping 1.4s ease-out 1 forwards; }
+@keyframes ping { from { transform: scale(.6); opacity: 1; } to { transform: scale(1.8); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .mk.fresh .sym::after, .mk.emerg .sym::before { animation: none; } .mk.fresh .sym::after { opacity: 0; } }
+.home-sym { flex: none; width: 30px; height: 30px; border-radius: 50%; background: rgba(255,255,255,.9); box-shadow: 0 0 0 3px var(--signal); display: grid; place-items: center; }
+.home-mk { width: 14px; height: 14px; border: 3px solid var(--ink); background: var(--signal); transform: rotate(45deg); }
+.clu { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: rgba(36,89,166,.25); }
+.clu span { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: #2459a6; color: #fff;
+  font: 600 13px/1 var(--font); font-variant-numeric: tabular-nums; }
+
+.leaflet-popup-content { font-family: var(--font); font-size: 15px; margin: 12px 14px; }
+.pop h3 { margin: 0 0 4px; font-size: 1.15rem; }
+.pop table { border-collapse: collapse; }
+.pop td { padding: 1px 10px 1px 0; vertical-align: top; }
+.pop td:first-child { color: #5b6b73; }
+.pop .acts { margin: 8px 0 0; display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
+.pop .acts a, .pop .acts button { color: #2459a6; font-weight: 600; cursor: pointer; background: none; border: 0; padding: 0; font: inherit; text-decoration: underline; }
+.pop .emerg { color: #c22; font-weight: 700; }
+
+@media (max-width: 760px) {
+  body { grid-template-columns: minmax(0, 1fr); grid-template-rows: 52vh 48vh; }
+  aside { border-left: 0; border-top: 1px solid var(--line); }
+  details.logbox { max-height: 30%; }
+  .replay { left: 52px; right: 8px; flex-wrap: wrap; gap: 6px; padding: 5px 8px; font-size: .9rem; }
+  .replay output { min-width: 0; flex: 1; }
+  .replay input[type=range] { order: 5; flex-basis: 100%; }
+}
+</style>
+</head>
+<body>
+<div id="mapwrap">
+  <div id="map" role="application" aria-label="Mappa delle stazioni ricevute" data-ta></div>
+  <section id="pick" class="box" hidden aria-labelledby="pickTitle">
+    <h2 id="pickTitle" data-t>Posizione della stazione ricevente</h2>
+    <p data-t>Fai clic sulla mappa oppure cerca una località, delle coordinate o un locatore. Il segnaposto si può trascinare per affinare il punto.</p>
+    <form id="pickSearch" role="search">
+      <input type="search" id="pickQ" placeholder="Es. Bologna, 44.49 11.34 o JN54pl" data-tp
+             aria-label="Località, coordinate o locatore" data-ta autocomplete="off">
+      <button type="submit" data-t>Cerca</button>
+    </form>
+    <button type="button" id="pickGeo" class="link" data-t>Usa la mia posizione attuale</button>
+    <ul id="pickResults"></ul>
+    <p id="pickMsg" role="status"></p>
+    <div class="pick-coords" aria-live="polite">
+      <span id="pickCoords" data-t>Nessun punto scelto</span><b id="pickLoc"></b>
+    </div>
+    <div class="pick-actions">
+      <button type="button" id="pickCancel" data-t>Annulla</button>
+      <button type="button" id="pickOk" class="primary" disabled data-t>Usa questa posizione</button>
+    </div>
+  </section>
+  <div id="zonePickHint" class="box" hidden role="status"><span data-t>Fai clic sulla mappa nel centro della zona.</span>
+    <button type="button" id="zonePickCancel" data-t>Annulla</button></div>
+  <div id="toast" role="status" hidden></div>
+  <section id="cov" class="box" hidden aria-labelledby="covTitle">
+    <div class="box-head">
+      <h2 id="covTitle" data-t>Copertura radio</h2>
+      <button type="button" class="x" id="covClose" aria-label="Chiudi" data-ta>×</button>
+    </div>
+    <label id="covBand" hidden><span data-t>Banda</span>
+      <select id="covBandSel">
+        <option value="vhf">VHF (144,800 MHz)</option>
+        <option value="lora">LoRa (433,775 MHz)</option>
+      </select>
+    </label>
+    <label><span data-t>Periodo</span>
+      <select id="covDays">
+        <option value="1" data-t>Ultime 24 ore</option>
+        <option value="7" selected data-t>Ultimi 7 giorni</option>
+        <option value="30" data-t>Ultimi 30 giorni</option>
+        <option value="0" data-t>Tutto lo storico</option>
+      </select>
+    </label>
+    <ul class="legend">
+      <li><i style="background:#2f8a57"></i><span data-t>Stazioni ricevute direttamente</span></li>
+      <li><i style="background:#d08a1c"></i><span data-t>Ricevute solo tramite digipeater</span></li>
+      <li><i class="line"></i><span data-t>Distanza massima di ricezione diretta per direzione (VHF blu, LoRa viola)</span></li>
+    </ul>
+    <p id="covText" aria-live="polite"></p>
+  </section>
+  <section id="wxp" class="box" hidden aria-labelledby="wxTitle">
+    <div class="box-head">
+      <h2 id="wxTitle" data-t>Meteo</h2>
+      <button type="button" class="x" id="wxClose" aria-label="Chiudi" data-ta>×</button>
+    </div>
+    <div class="wxhours" id="wxHours"></div>
+    <div class="now" id="wxNow"></div>
+    <div id="wxCharts"></div>
+  </section>
+  <section id="tlmp" class="box" hidden aria-labelledby="tlmTitle">
+    <div class="box-head">
+      <h2 id="tlmTitle" data-t>Telemetria</h2>
+      <button type="button" class="x" id="tlmClose" aria-label="Chiudi" data-ta>×</button>
+    </div>
+    <p class="sub" id="tlmSub"></p>
+    <div id="tlmNow"></div>
+    <div id="tlmCharts"></div>
+  </section>
+  <div id="replay" class="replay" role="group" aria-label="Riproduzione dello storico" data-ta hidden>
+    <button type="button" id="rpPlay" aria-label="Riproduci" data-ta>▶</button>
+    <input type="range" id="rpSlider" min="0" max="1000" value="0" aria-label="Istante della riproduzione" data-ta>
+    <output id="rpTime"></output>
+    <select id="rpSpeed" aria-label="Velocità della riproduzione" data-ta></select>
+    <button type="button" id="rpClose" aria-label="Chiudi la riproduzione" data-ta>×</button>
+  </div>
+</div>
+<aside>
+  <header>
+    <h1>APRS Master <span class="by">by IZ2LPN op. Giorgio</span></h1>
+    <div class="status">
+      <span><span class="dot" id="dot"></span><span id="conn" data-t>In connessione</span></span>
+      <span><b id="nStations">0</b> <span data-t>stazioni</span></span>
+      <span><b id="nPackets">0</b> <span data-t>pacchetti</span></span>
+    </div>
+    <div class="status cmp" id="cmp" hidden>
+      <span><b id="nRf">0</b> VHF</span>
+      <span id="cmpLora"><b id="nLora">0</b> LoRa</span>
+      <span id="cmpIs1"><b id="nBoth">0</b> <span data-t>anche in rete</span></span>
+      <span id="cmpIs2"><b id="nIs">0</b> <span data-t>solo Internet</span></span>
+    </div>
+  </header>
+  <nav class="tabs" role="tablist" id="tabs">
+    <button type="button" role="tab" id="tabSt" aria-selected="true" aria-controls="paneSt" data-t>Stazioni</button>
+    <button type="button" role="tab" id="tabMsg" aria-selected="false" aria-controls="paneMsg" hidden><span data-t>Messaggi</span><span class="badge" id="msgBadge"></span></button>
+    <button type="button" role="tab" id="tabAl" aria-selected="false" aria-controls="paneAl" hidden><span data-t>Avvisi</span><span class="badge" id="alBadge"></span></button>
+  </nav>
+
+  <section class="pane" id="paneSt" role="tabpanel" aria-labelledby="tabSt">
+    <div class="tools">
+      <input type="search" id="q" placeholder="Cerca nominativo" data-tp aria-label="Cerca nominativo" data-ta>
+      <label><input type="checkbox" id="follow"> <span data-t>Segui</span></label>
+      <label><input type="checkbox" id="tracks" checked> <span data-t>Tracce</span></label>
+    </div>
+    <div class="tools tools2">
+      <button type="button" id="fltBtn" aria-expanded="false" aria-controls="fltBox"><span data-t>Filtri</span><span id="fltN"></span></button>
+      <label title="Raggruppa le stazioni vicine quando la mappa è lontana" data-tt><input type="checkbox" id="cluster" checked> <span data-t>Raggruppa</span></label>
+      <label title="Nominativi accanto ai simboli" data-tt><input type="checkbox" id="labels" checked> <span data-t>Etichette</span></label>
+      <span class="sp"></span>
+      <button type="button" id="rpBtn" aria-pressed="false" title="Rivedi gli spostamenti delle ultime ore" data-tt data-t>Riproduci</button>
+      <button type="button" id="covBtn" hidden aria-pressed="false" data-t>Copertura</button>
+    </div>
+    <div id="fltBox" hidden>
+      <fieldset id="fltKind"><legend data-t>Tipo di stazione</legend></fieldset>
+      <fieldset id="fltSrc"><legend data-t>Ricevuta</legend></fieldset>
+      <div class="fltfoot"><small id="fltInfo"></small><button type="button" class="linkbtn" id="fltAll" data-t>Mostra tutto</button></div>
+    </div>
+    <ul id="stations"></ul>
+    <details class="logbox" open>
+      <summary data-t>Pacchetti ricevuti</summary>
+      <div id="log"></div>
+    </details>
+  </section>
+
+  <section class="pane" id="paneMsg" role="tabpanel" aria-labelledby="tabMsg" hidden>
+    <div class="subtabs">
+      <button type="button" data-view="conv" aria-pressed="true" data-t>Conversazioni</button>
+      <button type="button" data-view="heard" aria-pressed="false" data-t>Sentiti</button>
+      <button type="button" data-view="bln" aria-pressed="false" data-t>Bollettini</button>
+    </div>
+    <div id="msgNote"></div>
+    <div id="convView" class="scroll"><ul class="conv" id="convList"></ul></div>
+    <div id="threadView" class="pane" hidden>
+      <div class="thead"><button type="button" id="threadBack" aria-label="Indietro" data-ta>←</button><b id="threadPeer"></b>
+        <button type="button" class="linkbtn" id="threadMap" data-t>Sulla mappa</button></div>
+      <div class="scroll"><div class="thread" id="thread"></div></div>
+    </div>
+    <div id="heardView" class="scroll" hidden><ul class="conv heard" id="heardList"></ul></div>
+    <div id="blnView" class="scroll" hidden><ul class="conv heard" id="blnList"></ul></div>
+    <form class="compose" id="compose" hidden autocomplete="off">
+      <div class="row">
+        <input name="to" required maxlength="9" placeholder="Destinatario" data-tp aria-label="Destinatario" data-ta list="callList">
+        <span class="cnt" id="cnt">0/67</span>
+        <button type="submit" class="primary" data-t>Invia</button>
+      </div>
+      <textarea name="text" required maxlength="67" rows="2" placeholder="Testo del messaggio (senza accenti)" data-tp aria-label="Testo del messaggio" data-ta></textarea>
+      <datalist id="callList"></datalist>
+    </form>
+  </section>
+
+  <section class="pane" id="paneAl" role="tabpanel" aria-labelledby="tabAl" hidden>
+    <div class="tools">
+      <label><input type="checkbox" id="alSound" checked> <span data-t>Suono</span></label>
+      <button type="button" id="alNotify" data-t>Notifiche del browser</button>
+      <span class="sp"></span>
+      <button type="button" id="alRulesBtn" aria-expanded="false" data-t>Regole</button>
+    </div>
+    <form class="rules" id="rules" hidden>
+      <label><span data-t>Stazioni da osservare</span>
+        <input type="text" name="watch" placeholder="IZ2LPN-9, IZ1ABC, IU2*" autocomplete="off">
+        <small data-t>Separate da virgole. Senza SSID valgono tutti gli SSID; con * tutti i nominativi che iniziano così.</small></label>
+      <label><span data-t>Riavvisa dopo un'assenza di (minuti)</span><input type="number" name="quiet_min" min="1" max="1440" value="30"></label>
+      <label class="chk"><input type="checkbox" name="emergency" checked> <span data-t>Segnale di emergenza Mic-E</span></label>
+      <label class="chk"><input type="checkbox" name="messages" checked> <span data-t>Messaggi per la mia stazione</span></label>
+      <div><b data-t>Zone</b> <small data-t>Avviso quando una stazione entra o esce.</small></div>
+      <div class="zones" id="zones"></div>
+      <div class="acts">
+        <button type="button" id="zoneAdd" data-t>Aggiungi una zona dalla mappa</button>
+        <button type="submit" class="primary" data-t>Salva le regole</button>
+      </div>
+      <small id="rulesMsg" role="status"></small>
+    </form>
+    <div id="alNote"></div>
+    <div class="scroll"><ul class="alerts" id="alerts"></ul></div>
+    <div class="tools"><span class="sp"></span><button type="button" id="alClear" data-t>Svuota l'elenco</button></div>
+  </section>
+</aside>
+
+<script src="/static/leaflet/leaflet.js"></script>
+<script src="/static/markercluster/leaflet.markercluster.js"></script>
+<script src="/static/grafici.js"></script>
+<script>
+"use strict";
+// ---------------------------------------------------------------- lingua
+let TR = {}, LANG = "it", LOC = "it-IT";
+const tt = (s, v) => { let r = TR[s] ?? s; if (v) for (const k in v) r = r.split("{" + k + "}").join(v[k]); return r; };
+/** Testi della pagina: data-t = contenuto, data-tp = segnaposto, data-ta = aria-label, data-tt = title. */
+function translateDom() {
+  document.documentElement.lang = LANG;
+  document.querySelectorAll("[data-t]").forEach(e => { if (!e.children.length) e.textContent = tt(e.textContent.trim()); });
+  document.querySelectorAll("[data-tp]").forEach(e => { e.placeholder = tt(e.placeholder); });
+  document.querySelectorAll("[data-ta]").forEach(e => { e.setAttribute("aria-label", tt(e.getAttribute("aria-label"))); });
+  document.querySelectorAll("[data-tt]").forEach(e => { e.title = tt(e.title); });
+}
+
+const SPRITE = "/simboli/aprs-symbols-24-";      // scaricati una volta e conservati dal programma
+const STALE_S = 30 * 60;                       // dopo 30 min la stazione si attenua
+const PALETTE = ["#2459a6", "#b5432f", "#2f8a57", "#7a4fb0", "#c07a12", "#0f7c86", "#a03a78", "#4d6b1f"];
+const MSG_MAX = 67;
+
+const map = L.map("map", { zoomControl: true, maxZoom: 19 }).setView([42.5, 12.5], 6);
+const OSM_TILES = { url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png", maxZoom: 19, minZoom: 0,
+  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' };
+let tileLayer = null;
+function setTiles(cfg) {
+  cfg = cfg || OSM_TILES;
+  if (tileLayer) tileLayer.remove();
+  tileLayer = L.tileLayer(cfg.url, { maxZoom: cfg.maxZoom, minZoom: cfg.minZoom, attribution: cfg.attribution }).addTo(map);
+}
+
+const stations = new Map();   // id -> {data, marker, line, color}
+let home = null, selected = null, colorIdx = 0, fitted = false, hasHistory = false;
+let hasIs = false, hasLora = false, features = {}, who = { write: false, local: false, password: false };
+const replay = { on: false, playing: false, t: 0, start: 0, end: 0, raf: 0, last: 0, drawn: 0, listed: 0 };
+
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const $ = id => document.getElementById(id);
+const store = { get(k, d) { try { const v = localStorage.getItem("aprsmaster_" + k); return v == null ? d : v; } catch (e) { return d; } },
+                set(k, v) { try { localStorage.setItem("aprsmaster_" + k, v); } catch (e) { /* niente memoria */ } } };
+async function api(url, body) {
+  const opt = body === undefined ? { cache: "no-store" } : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) };
+  const res = await fetch(url, opt);
+  let data = {};
+  try { data = await res.json(); } catch (e) { /* risposta vuota */ }
+  if (!res.ok) { const err = new Error(data.error || res.status); err.status = res.status; throw err; }
+  return data;
+}
+
+function spritePos(ch) {
+  const i = Math.max(0, Math.min(95, ch.charCodeAt(0) - 33));
+  return `-${(i % 16) * 24}px -${Math.floor(i / 16) * 24}px`;
+}
+function symbolHTML(table, code) {
+  // '/' tabella primaria, '\' alternativa, altro carattere = overlay sulla alternativa
+  const sheet = table === "/" ? 0 : 1;
+  let html = `<div class="sym" style="background-image:url(${SPRITE}${sheet}.png);background-position:${spritePos(code || "/")}">`;
+  if (table && table !== "/" && table !== "\\")
+    html += `<i style="background-image:url(${SPRITE}2.png);background-position:${spritePos(table)}"></i>`;
+  return html + "</div>";
+}
+
+function haversine(a, b) {
+  const R = 6371, r = Math.PI / 180;
+  const dLat = (b[0] - a[0]) * r, dLon = (b[1] - a[1]) * r;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(a[0] * r) * Math.cos(b[0] * r) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+function bearing(a, b) {
+  const r = Math.PI / 180, y = Math.sin((b[1] - a[1]) * r) * Math.cos(b[0] * r);
+  const x = Math.cos(a[0] * r) * Math.sin(b[0] * r) - Math.sin(a[0] * r) * Math.cos(b[0] * r) * Math.cos((b[1] - a[1]) * r);
+  return (Math.atan2(y, x) / r + 360) % 360;
+}
+const nowRef = () => replay.on ? replay.t : Date.now() / 1000;
+function ago(t) {
+  const s = Math.max(0, nowRef() - t);
+  if (s < 60) return tt("{n} s fa", { n: Math.round(s) });
+  if (s < 3600) return tt("{n} min fa", { n: Math.round(s / 60) });
+  return tt("{h} h {m} min fa", { h: Math.floor(s / 3600), m: Math.round((s % 3600) / 60) });
+}
+const fmtWhen = t => new Date(t * 1000).toLocaleString(LOC, { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+const fmtDay = t => new Date(t * 1000).toLocaleDateString(LOC, { day: "2-digit", month: "2-digit" });
+const fmtHM = t => new Date(t * 1000).toLocaleTimeString(LOC, { hour: "2-digit", minute: "2-digit" });
+const num = (v, dg = 1) => Number(v).toLocaleString(LOC, { minimumFractionDigits: dg, maximumFractionDigits: dg });
+
+// da dove è stata ricevuta una stazione: VHF (AFSK 1200), LoRa, Internet (APRS-IS)
+function sources(d) {
+  const out = [];
+  if (d.rf_last) out.push("VHF");
+  if (d.lora_last) out.push("LoRa");
+  if (d.is_last) out.push("Internet");
+  return out.length ? out : ["VHF"];
+}
+const origin = d => (d.rf_last || d.lora_last) ? "radio" : (d.is_last ? "is" : "radio");
+const originText = d => sources(d).join(" + ");
+const isEmerg = d => String(d.mic_e_status || "").toUpperCase().startsWith("EMERGENZA");
+
+// ---------------------------------------------------------------- meteo
+const isWx = d => !!d.wx || d.symbol_code === "_";
+/** Commento senza i campi meteo grezzi (g005t077r000h50b10132...). */
+const wxStrip = c => String(c || "").replace(/^(?:[cstgrpPhbLl](?:-?\d{2,5}|\.{2,5}| {2,5}))+\s*/, "").replace(/^\d{3}\/\d{3}/, "");
+const COMPASS_IT = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSO", "SO", "OSO", "O", "ONO", "NO", "NNO"];
+const COMPASS_EN = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"];
+const compass = deg => (LANG === "it" ? COMPASS_IT : COMPASS_EN)[Math.round(deg / 22.5) % 16];
+/** Riassunto meteo in una riga. */
+function wxText(w) {
+  const p = [];
+  if (w.temp != null) p.push(`${num(w.temp)} °C`);
+  if (w.wind != null) p.push(tt("vento {v} km/h", { v: num(w.wind, 0) }) + (w.wind_dir != null && w.wind > 0 ? " " + tt("da {dir}", { dir: compass(w.wind_dir) }) : "")
+    + (w.gust != null && w.gust > w.wind ? ", " + tt("raffiche {v}", { v: num(w.gust, 0) }) : ""));
+  if (w.hum != null) p.push(tt("umidità {v}%", { v: w.hum }));
+  if (w.press != null) p.push(`${num(w.press)} hPa`);
+  if (w.rain_1h) p.push(tt("pioggia {v} mm/h", { v: num(w.rain_1h) }));
+  else if (w.rain_24h) p.push(tt("pioggia 24 h {v} mm", { v: num(w.rain_24h) }));
+  return p.join(" · ");
+}
+
+function details(d) {
+  const wxs = isWx(d);
+  const rows = [
+    [tt("Tipo"), tt(d.kind)], [tt("Stato Mic-E"), d.mic_e_status ? tt(d.mic_e_status) : null],
+    [tt("Ricevuta"), (hasIs || hasLora) ? originText(d) : null], [tt("Via"), d.via !== d.id ? d.via : null],
+    [tt("Posizione"), `${d.lat.toFixed(5)}, ${d.lon.toFixed(5)}`],
+    [tt("Velocità"), d.speed_kmh != null && !wxs ? `${d.speed_kmh} km/h` : null],
+    [tt("Rotta"), d.course != null && !wxs ? `${d.course}°` : null],
+    [tt("Quota"), d.altitude_m != null ? `${Math.round(d.altitude_m)} m` : null],
+    [tt("Distanza"), home ? `${haversine(home, [d.lat, d.lon]).toFixed(1)} km, ${Math.round(bearing(home, [d.lat, d.lon]))}°` : null],
+    [tt("Ricezione"), d.rf_last || d.lora_last ? (d.direct === false ? tt("tramite digipeater") : d.direct ? tt("diretta") : null) : null],
+    [tt("Meteo"), d.wx ? wxText(d.wx) : null],
+    [tt("Pacchetti"), d.packets], [tt("Ultimo"), `${fmtWhen(d.last_heard)} (${ago(d.last_heard)})`],
+    [tt("Commento"), (wxs ? wxStrip(d.comment) : d.comment) || null],
+  ].filter(r => r[1] != null && r[1] !== "");
+  const acts = [];
+  if (d.wx) acts.push(`<button type="button" data-wx="${esc(d.id)}">${esc(tt("Grafici meteo"))}</button>`);
+  if (d.tlm_t) acts.push(`<button type="button" data-tlm="${esc(d.via || d.id)}">${esc(tt("Telemetria"))}</button>`);
+  if (features.messages && !d.object_name) acts.push(`<button type="button" data-msg="${esc(d.id)}">${esc(tt("Scrivi un messaggio"))}</button>`);
+  if (hasHistory) acts.push(`<a href="/api/gpx?id=${encodeURIComponent(d.id)}&ore=24" download>${esc(tt("Scarica traccia GPX (ultime 24 ore)"))}</a>`);
+  return `<div class="pop"><h3>${esc(d.id)}</h3>${isEmerg(d) ? `<p class="emerg">${esc(tt("EMERGENZA"))}</p>` : ""}<table>${rows.map(r => `<tr><td>${esc(r[0])}</td><td>${esc(r[1])}</td></tr>`).join("")}</table>`
+    + (acts.length ? `<div class="acts">${acts.join("")}</div>` : "") + "</div>";
+}
+
+/** Nominativo con l'SSID evidenziato: IZ2LPN-9 -> IZ2LPN<span class="ssid">-9</span> */
+function labelHTML(id) {
+  const m = /^(.*?)(-[0-9A-Z]{1,2})$/.exec(id);
+  return m && m[1] ? `${esc(m[1])}<span class="ssid">${esc(m[2])}</span>` : esc(id);
+}
+
+function icon(d, fresh) {
+  const o = origin(d);
+  const cls = (fresh ? " fresh" : "") + (o === "is" ? " is" : "") + (d.lora_last && !d.rf_last ? " lora" : "") + (isEmerg(d) ? " emerg" : "");
+  return L.divIcon({
+    className: "", iconSize: null, iconAnchor: [12, 13], popupAnchor: [0, -13],
+    html: `<div class="mk${cls}">${symbolHTML(d.symbol_table, d.symbol_code)}<span class="lbl">${labelHTML(d.id)}${d.wx && d.wx.temp != null ? `<span class="wxt">${num(d.wx.temp, 0)}°</span>` : ""}</span></div>`
+  });
+}
+
+// ---------------------------------------------------------------- filtri
+const MOVING = new Set("><=COPRSUXY^abfjksuv[".split(""));      // simboli di mezzi in movimento
+function kindOf(d) {
+  if (d.object_name) return "obj";
+  if (isWx(d)) return "wx";
+  if (d.symbol_code === "#" || d.symbol_code === "&") return "digi";
+  if ((d.speed_kmh || 0) > 0 || d.track.length > 1 || MOVING.has(d.symbol_code)) return "mob";
+  return "fix";
+}
+const srcOf = d => origin(d) === "is" ? "is" : d.lora_last && !d.rf_last ? "lora" : d.direct === false ? "digi" : "direct";
+let flt = { kind: {}, src: {} };              // categorie nascoste
+try { const v = JSON.parse(store.get("filtri", "null")); if (v && v.kind && v.src) flt = v; } catch (e) { /* niente memoria */ }
+const passes = d => !flt.kind[kindOf(d)] && !flt.src[srcOf(d)];
+function fltLabels() {
+  return {
+    kind: { mob: tt("Mobili"), fix: tt("Fisse"), wx: tt("Meteo"), digi: tt("Digipeater e iGate"), obj: tt("Oggetti") },
+    src: { direct: tt("Radio diretta"), digi: tt("Tramite digipeater"), lora: "LoRa", is: tt("Solo Internet") },
+  };
+}
+function buildFilters() {
+  const FLT = fltLabels();
+  for (const g of ["kind", "src"]) {
+    const fs = $(g === "kind" ? "fltKind" : "fltSrc");
+    fs.querySelectorAll("label").forEach(l => l.remove());
+    for (const [k, t] of Object.entries(FLT[g])) {
+      const l = document.createElement("label");
+      l.dataset.g = g; l.dataset.k = k;
+      l.innerHTML = `<input type="checkbox"${flt[g][k] ? "" : " checked"}> ${esc(t)} <small></small>`;
+      l.querySelector("input").addEventListener("change", e => {
+        if (e.target.checked) delete flt[g][k]; else flt[g][k] = 1;
+        store.set("filtri", JSON.stringify(flt));
+        applyVisibility(); renderList();
+      });
+      fs.appendChild(l);
+    }
+  }
+}
+function filterCounts(all) {
+  const c = { kind: {}, src: {} };
+  all.forEach(d => { const k = kindOf(d), r = srcOf(d); c.kind[k] = (c.kind[k] || 0) + 1; c.src[r] = (c.src[r] || 0) + 1; });
+  document.querySelectorAll("#fltBox label[data-g]").forEach(l => {
+    const n = c[l.dataset.g][l.dataset.k] || 0;
+    l.querySelector("small").textContent = n;
+    l.hidden = !n && !flt[l.dataset.g][l.dataset.k];
+  });
+  const hidden = all.filter(d => !passes(d)).length;
+  const active = Object.keys(flt.kind).length + Object.keys(flt.src).length;
+  $("fltN").textContent = active ? " " + tt("({n} nascoste)", { n: hidden }) : "";
+  $("fltInfo").textContent = active ? tt("{n} stazioni nascoste dai filtri", { n: hidden }) : tt("Tutte le stazioni sono visibili");
+}
+$("fltBtn").addEventListener("click", () => {
+  const open = $("fltBox").hidden;
+  $("fltBox").hidden = !open;
+  $("fltBtn").setAttribute("aria-expanded", String(open));
+});
+$("fltAll").addEventListener("click", () => {
+  flt = { kind: {}, src: {} };
+  store.set("filtri", "null");
+  buildFilters(); applyVisibility(); renderList();
+});
+
+// ---------------------------------------------------------------- gruppi di stazioni ed etichette
+const clusterGroup = L.markerClusterGroup({
+  showCoverageOnHover: false, maxClusterRadius: 44, disableClusteringAtZoom: 14, spiderfyOnMaxZoom: true,
+  iconCreateFunction: c => L.divIcon({ html: `<div class="clu"><span>${c.getChildCount()}</span></div>`, className: "", iconSize: [34, 34] }),
+});
+const plainGroup = L.layerGroup();
+if (store.get("raggruppa", "1") === "0") $("cluster").checked = false;
+if (store.get("etichette", "1") === "0") $("labels").checked = false;
+let stLayer = $("cluster").checked ? clusterGroup : plainGroup;
+stLayer.addTo(map);
+/** Sposta i segnaposti fra il gruppo che raggruppa e quello semplice. */
+function useClusters(on) {
+  const want = on ? clusterGroup : plainGroup;
+  if (want === stLayer && map.hasLayer(stLayer)) return;
+  const ms = [];
+  stations.forEach(s => { if (stLayer.hasLayer(s.marker)) ms.push(s.marker); });
+  stLayer.clearLayers(); stLayer.remove();
+  stLayer = want; want.addTo(map);
+  if (on) clusterGroup.addLayers(ms); else ms.forEach(m => plainGroup.addLayer(m));
+  declutter();
+}
+$("cluster").addEventListener("change", () => {
+  store.set("raggruppa", $("cluster").checked ? "1" : "0");
+  if (!replay.on) useClusters($("cluster").checked);
+});
+function applyLabels() {
+  $("map").classList.toggle("nolabels", !$("labels").checked);
+  store.set("etichette", $("labels").checked ? "1" : "0");
+  declutter();
+}
+$("labels").addEventListener("change", applyLabels);
+
+/**
+ * Etichette che si sovrappongono: si tengono quelle più importanti (stazione selezionata, emergenze,
+ * poi le più recenti) e si nascondono le altre, che ricompaiono al passaggio del mouse.
+ */
+let declutterQueued = false;
+function declutter() {
+  if (declutterQueued || !$("labels").checked) return;
+  declutterQueued = true;
+  requestAnimationFrame(() => {
+    declutterQueued = false;
+    const kept = [];
+    if (homeMarker && homeMarker.getElement()) { const l = homeMarker.getElement().querySelector(".lbl"); if (l) kept.push(l.getBoundingClientRect()); }
+    const list = [...stations.values()].filter(s => s.marker.getElement())
+      .sort((a, b) => (b.data.id === selected) - (a.data.id === selected) || isEmerg(b.data) - isEmerg(a.data) || b.data.last_heard - a.data.last_heard);
+    list.forEach(s => s.marker.getElement().firstElementChild.classList.remove("nolbl"));
+    const rects = list.map(s => { const l = s.marker.getElement().querySelector(".lbl"); return l ? l.getBoundingClientRect() : null; });
+    list.forEach((s, i) => {
+      const r = rects[i];
+      if (!r || !r.width) return;
+      const hit = kept.some(k => r.left < k.right + 2 && r.right > k.left - 2 && r.top < k.bottom + 1 && r.bottom > k.top - 1);
+      if (hit) s.marker.getElement().firstElementChild.classList.add("nolbl"); else kept.push(r);
+    });
+  });
+}
+map.on("zoomend moveend", declutter);
+clusterGroup.on("animationend spiderfied unspiderfied", declutter);
+
+// ---------------------------------------------------------------- disegno
+function applyVisibility() {
+  if (replay.on) { stations.forEach(s => { s.rk = null; placeAt(s, replay.t); }); return; }
+  stations.forEach(s => {
+    const show = passes(s.data);
+    if (show && !stLayer.hasLayer(s.marker)) stLayer.addLayer(s.marker);
+    if (!show && stLayer.hasLayer(s.marker)) stLayer.removeLayer(s.marker);
+    const trk = show && $("tracks").checked;
+    if (trk && !map.hasLayer(s.line)) s.line.addTo(map);
+    if (!trk && map.hasLayer(s.line)) s.line.remove();
+  });
+  declutter();
+}
+
+function upsert(d, fresh) {
+  let s = stations.get(d.id);
+  const pts = d.track.map(p => [p[0], p[1]]);
+  if (!s) {
+    s = { color: PALETTE[colorIdx++ % PALETTE.length] };
+    s.marker = L.marker([d.lat, d.lon], { icon: icon(d, fresh) }).on("click", () => select(d.id, false));
+    s.line = L.polyline(pts, { color: s.color, weight: 3, opacity: .8 });
+    s.data = d;
+    if (passes(d) && !replay.on) {
+      stLayer.addLayer(s.marker);
+      if ($("tracks").checked) s.line.addTo(map);
+    }
+    stations.set(d.id, s);
+  } else {
+    if (!replay.on) s.marker.setLatLng([d.lat, d.lon]);
+    s.marker.setIcon(icon(d, fresh));
+    if (!replay.on) s.line.setLatLngs(pts);
+  }
+  const was = s.data && passes(s.data);
+  s.data = d;
+  s.marker.bindPopup(() => details(s.data));
+  if (was !== passes(d)) applyVisibility();
+  declutter();
+  if (selected === d.id && s.marker.isPopupOpen()) s.marker.setPopupContent(details(d));
+  if (replay.on) { s.rk = null; placeAt(s, replay.t); return; }
+  if (fresh && $("follow").checked && (!selected || selected === d.id)) map.panTo([d.lat, d.lon]);
+}
+
+function select(id, fly = true) {
+  selected = id;
+  const s = stations.get(id);
+  if (!s) return false;
+  showTab("St");
+  if (stLayer === clusterGroup && clusterGroup.hasLayer(s.marker) && !s.marker.getElement()) {
+    clusterGroup.zoomToShowLayer(s.marker, () => s.marker.openPopup());     // dentro un gruppo: si apre il gruppo
+  } else {
+    if (fly) map.flyTo(s.marker.getLatLng(), Math.max(map.getZoom(), 13), { duration: .8 });
+    s.marker.openPopup();
+  }
+  renderList();
+  return true;
+}
+
+function renderList() {
+  const q = $("q").value.trim().toUpperCase();
+  const now = nowRef();
+  const every = [...stations.values()].filter(s => !replay.on || s.shown || !passes(s.data)).map(s => s.data);
+  filterCounts(every);
+  const list = every.filter(d => passes(d) && (!q || d.id.toUpperCase().includes(q)))
+    .sort((a, b) => isEmerg(b) - isEmerg(a) || b.last_heard - a.last_heard);
+  $("nStations").textContent = stations.size;
+  const all = [...stations.values()].map(s => s.data);
+  hasIs = hasIs || all.some(d => d.is_last);
+  hasLora = hasLora || all.some(d => d.lora_last);
+  $("cmp").hidden = !(hasIs || hasLora);
+  $("cmpLora").hidden = !hasLora;
+  $("cmpIs1").hidden = $("cmpIs2").hidden = !hasIs;
+  $("covBand").hidden = !hasLora;
+  $("nRf").textContent = all.filter(d => d.rf_last).length;
+  $("nLora").textContent = all.filter(d => d.lora_last).length;
+  $("nBoth").textContent = all.filter(d => d.is_last && (d.rf_last || d.lora_last)).length;
+  $("nIs").textContent = all.filter(d => origin(d) === "is").length;
+  const ul = $("stations");
+  if (!list.length) {
+    ul.innerHTML = `<li class="empty" style="display:block;cursor:default">${esc(stations.size
+      ? tt("Nessuna stazione corrisponde alla ricerca o ai filtri.")
+      : tt("Nessuna posizione ricevuta. Controlla volume e frequenza (144,800 MHz in Europa): ogni pacchetto decodificato compare qui sotto."))}</li>`;
+    return;
+  }
+  ul.innerHTML = list.map(d => {
+    const meta = [];
+    if (home) meta.push(`${haversine(home, [d.lat, d.lon]).toFixed(1)} km ${Math.round(bearing(home, [d.lat, d.lon]))}°`);
+    if (d.wx) meta.push(esc(wxText(d.wx)));
+    else {
+      if (d.speed_kmh) meta.push(`${Math.round(d.speed_kmh)} km/h`);
+      if (d.altitude_m != null) meta.push(`${Math.round(d.altitude_m)} m`);
+    }
+    if (isEmerg(d)) meta.unshift(`<b style="color:#c22">${esc(tt("EMERGENZA"))}</b>`);
+    if (!meta.length) meta.push(esc(d.comment).slice(0, 40) || esc(tt(d.kind)));
+    return `<li tabindex="0" data-id="${esc(d.id)}" class="${d.id === selected ? "sel" : ""}${now - d.last_heard > STALE_S ? " stale" : ""}${isEmerg(d) ? " emerg" : ""}">
+      ${symbolHTML(d.symbol_table, d.symbol_code)}
+      <span class="call">${esc(d.id)}${(hasIs || hasLora) ? `<span class="orig ${origin(d)}${d.lora_last ? " lora" : ""}">${originText(d)}</span>` : ""}</span><span class="age">${ago(d.last_heard)}</span>
+      <span class="meta">${meta.map(m => `<span>${m}</span>`).join("")}</span></li>`;
+  }).join("");
+}
+
+function addLog(p) {
+  const div = document.createElement("div");
+  const t = new Date(p.t * 1000).toLocaleTimeString(LOC);
+  const tag = p.origin === "lora" ? '<span class="tag lora">LoRa</span>' : p.origin === "is" ? `<span class="tag">${esc(tt("Rete"))}</span>` : "";
+  div.innerHTML = `<time>${t}</time>${tag}${esc(p.raw)}`;
+  div.title = tt(p.kind);
+  const log = $("log");
+  log.prepend(div);
+  while (log.childElementCount > 300) log.lastChild.remove();
+}
+
+function fitAll() {
+  const pts = [...stations.values()].map(s => [s.data.lat, s.data.lon]);
+  if (home) pts.push(home);
+  if (pts.length === 1) map.setView(pts[0], 12);
+  else if (pts.length > 1) map.fitBounds(pts, { padding: [40, 40], maxZoom: 14 });
+}
+
+$("stations").addEventListener("click", e => { const li = e.target.closest("li[data-id]"); if (li) select(li.dataset.id); });
+$("stations").addEventListener("keydown", e => { const li = e.target.closest("li[data-id]"); if (li && e.key === "Enter") select(li.dataset.id); });
+$("q").addEventListener("input", renderList);
+$("tracks").addEventListener("change", applyVisibility);
+map.on("popupclose", () => { selected = null; renderList(); });
+setInterval(() => { if (!replay.on) renderList(); }, 10000);
+
+function toast(text, alert) {
+  const t = $("toast");
+  t.textContent = text; t.hidden = false;
+  t.classList.toggle("alert", !!alert);
+  clearTimeout(toast.h);
+  toast.h = setTimeout(() => { t.hidden = true; }, alert ? 8000 : 4000);
+}
+
+// ---------------------------------------------------------------- riproduzione delle ultime ore
+// Le stazioni si muovono lungo le tracce in memoria; tra due punti vicini nel tempo la posizione si
+// interpola. Una stazione compare dal suo primo punto e resta nell'ultima posizione.
+const GAP_S = 3600;
+function speeds() { return [[60, "1 min/s"], [300, "5 min/s"], [900, "15 min/s"], [3600, tt("1 ora/s")], [10800, tt("3 ore/s")]]; }
+function posAt(d, T) {
+  const tr = d.track;
+  const first = tr.length ? tr[0][2] : d.last_heard;
+  if (first > T) return null;
+  if (!tr.length) return { ll: [d.lat, d.lon], n: 0 };
+  let lo = 0, hi = tr.length - 1, i = -1;
+  while (lo <= hi) { const m = (lo + hi) >> 1; if (tr[m][2] <= T) { i = m; lo = m + 1; } else hi = m - 1; }
+  if (i < 0) return { ll: [tr[0][0], tr[0][1]], n: 0 };
+  const a = tr[i], b = tr[i + 1];
+  if (b && b[2] > a[2] && b[2] - a[2] <= GAP_S) {
+    const f = (T - a[2]) / (b[2] - a[2]);
+    return { ll: [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f], n: i + 1 };
+  }
+  return { ll: [a[0], a[1]], n: i + 1 };
+}
+function placeAt(s, T) {
+  const d = s.data, p = posAt(d, T);
+  s.shown = !!p && passes(d);
+  if (!s.shown) { stLayer.removeLayer(s.marker); s.line.remove(); s.rk = null; return; }
+  const key = p.n + "|" + p.ll[0] + "|" + p.ll[1];
+  if (key !== s.rk) {
+    s.rk = key;
+    s.marker.setLatLng(p.ll);
+    const pts = [];
+    for (let i = 0; i < p.n; i++) pts.push([d.track[i][0], d.track[i][1]]);
+    if (p.n) pts.push(p.ll);
+    s.line.setLatLngs(pts);
+  }
+  if (!stLayer.hasLayer(s.marker)) stLayer.addLayer(s.marker);
+  const trk = $("tracks").checked;
+  if (trk && !map.hasLayer(s.line)) s.line.addTo(map);
+  if (!trk && map.hasLayer(s.line)) s.line.remove();
+}
+function placeAll() {
+  stations.forEach(s => placeAt(s, replay.t));
+  const s = selected && stations.get(selected);
+  if (s && s.shown && $("follow").checked) map.panTo(s.marker.getLatLng(), { animate: false });
+}
+function rpShowTime() {
+  $("rpTime").textContent = fmtWhen(replay.t);
+  $("rpSlider").value = String(Math.round(1000 * (replay.t - replay.start) / Math.max(1, replay.end - replay.start)));
+}
+function rpFrame(ts) {
+  if (!replay.playing) return;
+  const dt = replay.last ? Math.min(0.25, (ts - replay.last) / 1000) : 0;
+  replay.last = ts;
+  replay.t = Math.min(replay.end, replay.t + dt * Number($("rpSpeed").value));
+  const end = replay.t >= replay.end;
+  if (ts - replay.drawn > 80 || end) { replay.drawn = ts; placeAll(); rpShowTime(); }
+  if (ts - replay.listed > 800 || end) { replay.listed = ts; renderList(); declutter(); }
+  if (end) { rpPause(); return; }
+  replay.raf = requestAnimationFrame(rpFrame);
+}
+function rpPlay() {
+  if (replay.t >= replay.end) replay.t = replay.start;
+  replay.playing = true; replay.last = 0;
+  $("rpPlay").textContent = "❚❚"; $("rpPlay").setAttribute("aria-label", tt("Pausa"));
+  replay.raf = requestAnimationFrame(rpFrame);
+}
+function rpPause() {
+  replay.playing = false;
+  cancelAnimationFrame(replay.raf);
+  $("rpPlay").textContent = "▶";
+  $("rpPlay").setAttribute("aria-label", replay.t >= replay.end ? tt("Ricomincia") : tt("Riproduci"));
+}
+function rpOpen() {
+  if (!stations.size) { toast(tt("Nessuna stazione da riprodurre.")); return; }
+  map.closePopup();
+  replay.end = Date.now() / 1000;
+  const firsts = [...stations.values()].map(s => s.data.track[0] ? s.data.track[0][2] : s.data.last_heard);
+  replay.start = Math.min(...firsts) - 60;
+  if (replay.end - replay.start < 120) replay.start = replay.end - 120;
+  const want = (replay.end - replay.start) / 60;          // tutto il periodo in circa un minuto
+  $("rpSpeed").value = String(speeds().reduce((a, b) => Math.abs(Math.log(b[0] / want)) < Math.abs(Math.log(a[0] / want)) ? b : a)[0]);
+  replay.cl = stLayer === clusterGroup;
+  useClusters(false);                   // i gruppi non seguono bene segnaposti che si muovono di continuo
+  replay.on = true; replay.t = replay.start;
+  $("replay").hidden = false;
+  $("rpBtn").setAttribute("aria-pressed", "true");
+  stations.forEach(s => { s.rk = null; });
+  placeAll(); rpShowTime(); renderList();
+  rpPlay();
+}
+function rpClose() {
+  rpPause();
+  replay.on = false;
+  $("replay").hidden = true;
+  $("rpBtn").setAttribute("aria-pressed", "false");
+  stations.forEach(s => {
+    s.rk = null; s.shown = true;
+    s.marker.setLatLng([s.data.lat, s.data.lon]);
+    s.line.setLatLngs(s.data.track.map(p => [p[0], p[1]]));
+  });
+  applyVisibility(); renderList();
+  useClusters(replay.cl && $("cluster").checked);
+}
+$("rpBtn").addEventListener("click", () => (replay.on ? rpClose() : rpOpen()));
+$("rpClose").addEventListener("click", rpClose);
+$("rpPlay").addEventListener("click", () => (replay.playing ? rpPause() : rpPlay()));
+$("rpSlider").addEventListener("input", () => {
+  replay.t = replay.start + (replay.end - replay.start) * Number($("rpSlider").value) / 1000;
+  placeAll(); $("rpTime").textContent = fmtWhen(replay.t);
+  if (!replay.playing) { rpPause(); renderList(); }
+});
+$("rpSlider").addEventListener("change", renderList);
+document.addEventListener("keydown", e => {
+  if (!replay.on || e.target.matches("input, select, textarea")) return;
+  if (e.key === "Escape") rpClose();
+  else if (e.key === " " && !e.target.matches("button")) { e.preventDefault(); replay.playing ? rpPause() : rpPlay(); }
+});
+
+// ---------------------------------------------------------------- grafici meteo e telemetria
+function closePanels(except) {
+  for (const id of ["wxp", "tlmp", "cov"]) if (id !== except && !$(id).hidden) {
+    if (id === "cov") toggleCoverage(false); else $(id).hidden = true;
+  }
+}
+let wxId = null, wxHours = Number(store.get("ore_meteo", "24"));
+async function openWx(id, hours) {
+  wxId = id;
+  if (hours) { wxHours = hours; store.set("ore_meteo", String(hours)); }
+  closePanels("wxp");
+  map.closePopup();
+  $("wxp").hidden = false;
+  $("wxTitle").textContent = tt("Meteo di {id}", { id });
+  const H = hasHistory ? [[6, tt("6 ore")], [24, tt("24 ore")], [72, tt("3 giorni")], [168, tt("7 giorni")], [720, tt("30 giorni")]] : [];
+  $("wxHours").innerHTML = H.map(([h, l]) => `<button type="button" data-h="${h}" aria-pressed="${h === wxHours}">${esc(l)}</button>`).join("");
+  $("wxNow").textContent = "";
+  $("wxCharts").innerHTML = `<p class="chart-empty">${esc(tt("Caricamento…"))}</p>`;
+  let m;
+  try {
+    m = await api(`/api/meteo?id=${encodeURIComponent(id)}&ore=${wxHours}`);
+  } catch (e) {
+    $("wxCharts").innerHTML = `<p class="chart-empty">${esc(tt("Dati meteo non disponibili."))}</p>`;
+    return;
+  }
+  const S = m.series.map(r => { const o = { t: r[0] }; m.keys.forEach((k, i) => { o[k] = r[i + 1]; }); return o; });
+  $("wxNow").innerHTML = `<span>${esc(tt("Ultimo rapporto:"))} <b>${esc(fmtWhen(m.last.t))}</b></span><span>${esc(wxText(m.last.wx))}</span>`;
+  if (S.length < 2) {
+    $("wxCharts").innerHTML = `<p class="chart-empty">${esc(tt("I grafici compaiono dopo qualche rapporto meteo."))}</p>`;
+    return;
+  }
+  const x = S.map(p => p.t);
+  const span = x[x.length - 1] - x[0];
+  const xLabel = (t, i, full) => full ? fmtWhen(t) : span > 2 * 86400 ? fmtDay(t) : fmtHM(t);
+  const charts = [
+    [tt("Temperatura"), [{ name: tt("Temperatura"), key: "temp", color: "c1" }], "°C", 1, false],
+    [tt("Vento"), [{ name: tt("Medio"), key: "wind", color: "c1" }, { name: tt("Raffiche"), key: "gust", color: "c2" }], "km/h", 0, true],
+    [tt("Pressione"), [{ name: tt("Pressione"), key: "press", color: "c1" }], "hPa", 1, false],
+    [tt("Umidità"), [{ name: tt("Umidità"), key: "hum", color: "c1" }], "%", 0, true],
+    [tt("Pioggia nell'ultima ora"), [{ name: tt("Pioggia"), key: "rain_1h", color: "c1" }], "mm", 1, true],
+  ];
+  $("wxCharts").innerHTML = "";
+  for (const [title, ser, unit, digits, zero] of charts) {
+    const series = ser.map(z => ({ name: z.name, color: z.color, values: S.map(p => p[z.key] ?? null) })).filter(z => z.values.some(v => v != null));
+    if (!series.length) continue;
+    const h = document.createElement("h3"); h.textContent = `${title} (${unit})`;
+    const box = document.createElement("div");
+    $("wxCharts").append(h, box);
+    geoChart(box, { type: "line", x, series, unit, digits, yZero: zero, xLabel, height: 130, empty: tt("Nessun dato"), label: tt("{t} di {id}", { t: title, id }) });
+  }
+}
+$("wxHours").addEventListener("click", e => { const b = e.target.closest("[data-h]"); if (b && wxId) openWx(wxId, Number(b.dataset.h)); });
+$("wxClose").addEventListener("click", () => { $("wxp").hidden = true; wxId = null; });
+
+let tlmId = null;
+async function openTlm(id) {
+  tlmId = id;
+  closePanels("tlmp");
+  map.closePopup();
+  $("tlmp").hidden = false;
+  $("tlmTitle").textContent = tt("Telemetria di {id}", { id });
+  $("tlmNow").innerHTML = ""; $("tlmSub").textContent = "";
+  $("tlmCharts").innerHTML = `<p class="chart-empty">${esc(tt("Caricamento…"))}</p>`;
+  let m;
+  try { m = await api(`/api/telemetria?id=${encodeURIComponent(id)}`); }
+  catch (e) { $("tlmCharts").innerHTML = `<p class="chart-empty">${esc(tt("Nessuna telemetria per questa stazione."))}</p>`; return; }
+  const v = m.values;
+  $("tlmSub").textContent = tt("Ultima: {t}, sequenza {n}", { t: fmtWhen(m.t), n: v.seq }) + (v.project ? " · " + v.project : "")
+    + (v.defined ? "" : " · " + tt("valori grezzi: la stazione non ha mandato le definizioni"));
+  $("tlmNow").innerHTML = `<table class="tlm-table">${v.analog.map(a => `<tr><td>${esc(a.name)}</td><td><b>${esc(num(a.value, Math.abs(a.value) < 100 ? 2 : 0))}</b> ${esc(a.unit)}</td></tr>`).join("")}</table>`
+    + (v.bits.length ? `<div class="bits">${v.bits.map(b => `<span class="${b.on ? "on" : ""}" title="${esc(b.name)}">${esc(b.name)}: ${esc(b.label)}</span>`).join("")}</div>` : "");
+  $("tlmCharts").innerHTML = "";
+  if (m.series.length < 2) { $("tlmCharts").innerHTML = `<p class="chart-empty">${esc(tt("I grafici compaiono dopo qualche pacchetto di telemetria."))}</p>`; return; }
+  const x = m.series.map(r => r[0]);
+  const span = x[x.length - 1] - x[0];
+  const xLabel = (t, i, full) => full ? fmtWhen(t) : span > 2 * 86400 ? fmtDay(t) : fmtHM(t);
+  v.analog.forEach(a => {
+    const values = m.series.map(r => r[2 + a.i]);
+    if (!values.some(z => z != null)) return;
+    const h = document.createElement("h3"); h.textContent = a.unit ? `${a.name} (${a.unit})` : a.name;
+    const box = document.createElement("div");
+    $("tlmCharts").append(h, box);
+    geoChart(box, { type: "line", x, series: [{ name: a.name, color: "c1", values }], unit: a.unit, digits: 2, xLabel, height: 110, label: a.name });
+  });
+}
+$("tlmClose").addEventListener("click", () => { $("tlmp").hidden = true; tlmId = null; });
+
+document.addEventListener("click", e => {
+  const b = e.target.closest && e.target.closest("[data-wx],[data-tlm],[data-msg]");
+  if (!b) return;
+  if (b.dataset.wx) openWx(b.dataset.wx);
+  else if (b.dataset.tlm) openTlm(b.dataset.tlm);
+  else if (b.dataset.msg) { map.closePopup(); openThread(b.dataset.msg, true); }
+});
+
+// ---------------------------------------------------------------- copertura
+let covLayer = null;
+function destination(p, brg, km) {
+  const r = Math.PI / 180, d = km / 6371, t = brg * r, f1 = p[0] * r, l1 = p[1] * r;
+  const f2 = Math.asin(Math.sin(f1) * Math.cos(d) + Math.cos(f1) * Math.sin(d) * Math.cos(t));
+  const l2 = l1 + Math.atan2(Math.sin(t) * Math.sin(d) * Math.cos(f1), Math.cos(d) - Math.sin(f1) * Math.sin(f2));
+  return [f2 / r, l2 / r];
+}
+async function showCoverage() {
+  const days = $("covDays").value;
+  $("covText").textContent = tt("Calcolo in corso…");
+  let c;
+  try { c = await api(`/api/copertura?giorni=${days}&banda=${$("covBandSel").value}`); }
+  catch (e) { $("covText").textContent = tt("Dati di copertura non disponibili."); return; }
+  if (covLayer) covLayer.remove();
+  covLayer = L.layerGroup().addTo(map);
+  const h = c.cell_deg / 2;
+  const maxN = Math.max(1, ...c.cells.map(x => x.direct + x.digi));
+  for (const cell of c.cells) {
+    const n = cell.direct + cell.digi;
+    const op = 0.18 + 0.5 * Math.log(1 + n) / Math.log(1 + maxN);
+    L.rectangle([[cell.lat - h, cell.lon - h], [cell.lat + h, cell.lon + h]], {
+      stroke: false, fillColor: cell.direct ? "#2f8a57" : "#d08a1c", fillOpacity: op
+    }).bindTooltip(`${cell.stations.slice(0, 5).map(esc).join(", ")}${cell.stations.length > 5 ? "…" : ""}<br>`
+      + esc(tt("{d} pacchetti diretti, {g} tramite digipeater", { d: cell.direct, g: cell.digi }))).addTo(covLayer);
+  }
+  if (c.home && c.sectors.some(Boolean)) {
+    const pts = c.sectors.map((s, i) => destination(c.home, i * 10 + 5, s ? s.km : 0));
+    L.polygon(pts, { color: c.band === "lora" ? "#8a5cc4" : "#2459a6", weight: 2, dashArray: "6 5", fillOpacity: .06 }).addTo(covLayer);
+  }
+  let text;
+  if (!c.cells.length) {
+    text = tt("Nessuna posizione ricevuta via {b} nel periodo scelto.", { b: c.band === "lora" ? "LoRa" : "VHF" });
+  } else {
+    text = tt("{d} stazioni ricevute direttamente, {g} solo tramite digipeater.", { d: c.stations_direct, g: c.stations_digi_only });
+    if (c.farthest) text += " " + tt("La più lontana ricevuta direttamente è {s}, a {km} km.", { s: c.farthest.station, km: c.farthest.km.toLocaleString(LOC) });
+    if (!c.home) text += " " + tt("Imposta la posizione ricevente per vedere la distanza massima per direzione.");
+    const b = L.latLngBounds(c.cells.map(x => [x.lat, x.lon]));
+    if (c.home) b.extend(c.home);
+    const side = Math.min(380, map.getSize().x / 2);
+    map.fitBounds(b, { paddingTopLeft: [side, 40], paddingBottomRight: [40, 40], maxZoom: 12 });
+  }
+  $("covText").textContent = text;
+}
+function toggleCoverage(on) {
+  if (on) closePanels("cov");
+  $("cov").hidden = !on;
+  $("covBtn").setAttribute("aria-pressed", String(on));
+  if (on) showCoverage();
+  else if (covLayer) { covLayer.remove(); covLayer = null; }
+}
+$("covBtn").addEventListener("click", () => toggleCoverage($("cov").hidden));
+$("covClose").addEventListener("click", () => toggleCoverage(false));
+$("covDays").addEventListener("change", showCoverage);
+$("covBandSel").addEventListener("change", showCoverage);
+
+let homeMarker = null;
+let stationInfo = null;          // tipo di dispositivo e commento della stazione ricevente
+function setHome(h) {
+  if (homeMarker) { homeMarker.remove(); homeMarker = null; }
+  home = h || null;
+  if (!home) return;
+  const si = stationInfo;
+  const html = si
+    ? `<div class="mk own"><div class="home-sym">${symbolHTML(si.table, si.code)}</div>` + (si.call ? `<span class="lbl">${labelHTML(si.call)}</span>` : "") + "</div>"
+    : '<div class="home-mk"></div>';
+  const tip = si
+    ? `<b>${esc(si.call || tt("Stazione ricevente"))}</b><br>${esc(tt(si.label))}` + (si.equipment ? `<br>${esc(si.equipment)}` : "") + `<br><i>${esc(si.comment)}</i>`
+    : esc(tt("Stazione ricevente"));
+  homeMarker = L.marker(home, { icon: L.divIcon({ className: "", html, iconAnchor: si ? [15, 15] : [10, 10] }), zIndexOffset: 1000 })
+    .addTo(map).bindTooltip(tip);
+}
+
+function resetAll() {
+  if (replay.on) rpClose();
+  stations.forEach(s => { stLayer.removeLayer(s.marker); s.line.remove(); });
+  stations.clear();
+  selected = null; colorIdx = 0; fitted = false;
+  $("log").replaceChildren();
+  $("nPackets").textContent = 0;
+  renderList();
+}
+
+// la GUI apre la mappa con /#NOMINATIVO per centrare una stazione, /#messaggi o /#avvisi per le schede
+function selectFromHash() {
+  const id = decodeURIComponent(location.hash.slice(1));
+  if (id === "messaggi" && features.messages) showTab("Msg");
+  else if (id === "avvisi" && features.alerts) showTab("Al");
+  else if (id && stations.has(id)) select(id);
+}
+
+// ---------------------------------------------------------------- schede della barra laterale
+function showTab(name) {
+  for (const n of ["St", "Msg", "Al"]) {
+    $("tab" + n).setAttribute("aria-selected", String(n === name));
+    $("pane" + n).hidden = n !== name;
+  }
+  if (name === "Al") { alUnseen = 0; $("alBadge").textContent = ""; }
+  if (name === "Msg") renderMessages();
+}
+$("tabs").addEventListener("click", e => { const b = e.target.closest("[role=tab]"); if (b) showTab(b.id.slice(3)); });
+
+// ---------------------------------------------------------------- accesso (pannello e invio)
+function writeNote(what) {
+  if (who.write) return "";
+  return `<div class="note">${esc(who.password
+    ? tt("Per {what} serve la password del pannello.", { what })
+    : tt("Per {what} apri la mappa dal computer su cui gira APRS Master (oppure imposta la password del pannello).", { what }))}`
+    + (who.password ? ` <button type="button" class="linkbtn" data-login>${esc(tt("Accedi"))}</button>` : "") + "</div>";
+}
+async function login() {
+  try { await api("/api/login"); } catch (e) { /* il browser ha chiesto la password */ }
+  try { who = await api("/api/whoami"); } catch (e) { /* resta com'è */ }
+  if (!who.write) toast(tt("Accesso non riuscito."));
+  renderMessages(); renderRules(); renderAlerts();
+}
+document.addEventListener("click", e => { if (e.target.closest && e.target.closest("[data-login]")) login(); });
+
+// ---------------------------------------------------------------- messaggi
+let msgs = null, msgView = "conv", peer = null;
+async function loadMessages() {
+  if (!features.messages) return;
+  try { msgs = await api("/api/messaggi"); } catch (e) { return; }
+  const n = msgs.unread || 0;
+  $("msgBadge").textContent = n ? String(n) : "";
+  if (!$("paneMsg").hidden) renderMessages();
+}
+const STATUS = () => ({ "in invio": [tt("in invio…"), ""], "consegnato": [tt("consegnato"), "st-ok"],
+  "senza conferma": [tt("senza conferma"), "st-bad"], "rifiutato": [tt("rifiutato"), "st-bad"], "ricevuto": ["", ""] });
+function renderMessages() {
+  if (!msgs) return;
+  for (const b of document.querySelectorAll(".subtabs button")) b.setAttribute("aria-pressed", String(b.dataset.view === msgView));
+  let note = "";
+  if (!msgs.me) note = `<div class="note warn">${esc(tt("I messaggi si ricevono e si inviano con il collegamento APRS-IS: imposta il nominativo e il passcode."))}</div>`;
+  else if (!msgs.can_send) note = `<div class="note warn">${esc(tt("Per inviare serve il collegamento APRS-IS verificato (nominativo e passcode). La ricezione continua."))}</div>`;
+  note += writeNote(tt("inviare messaggi"));
+  $("msgNote").innerHTML = note;
+  const showThread = msgView === "conv" && peer;
+  $("convView").hidden = msgView !== "conv" || !!peer;
+  $("threadView").hidden = !showThread;
+  $("heardView").hidden = msgView !== "heard";
+  $("blnView").hidden = msgView !== "bln";
+  $("compose").hidden = !(msgView === "conv" && who.write && msgs.me);
+  // conversazioni
+  const by = new Map();
+  for (const m of msgs.messages) { if (!by.has(m.peer)) by.set(m.peer, []); by.get(m.peer).push(m); }
+  const conv = [...by.entries()].sort((a, b) => b[1][b[1].length - 1].t - a[1][a[1].length - 1].t);
+  $("convList").innerHTML = conv.length ? conv.map(([p, list]) => {
+    const last = list[list.length - 1], unread = list.some(m => m.dir === "in" && !m.read);
+    return `<li data-peer="${esc(p)}" class="${unread ? "unread" : ""}" tabindex="0"><span class="call">${esc(p)}</span><time class="age">${esc(fmtWhen(last.t))}</time>`
+      + `<span class="last">${last.dir === "out" ? "→ " : ""}${esc(last.text)}</span></li>`;
+  }).join("") : `<li class="empty" style="display:block;cursor:default">${esc(tt("Nessun messaggio. I messaggi per {me} compaiono qui.", { me: msgs.calls.join(", ") || "—" }))}</li>`;
+  if (showThread) {
+    $("threadPeer").textContent = peer;
+    $("threadMap").hidden = !stations.has(peer);
+    const list = by.get(peer) || [];
+    const S = STATUS();
+    $("thread").innerHTML = list.length ? list.map(m => {
+      const st = m.dir === "out" ? S[m.status] || [m.status, ""] : ["", ""];
+      return `<div class="bub ${m.dir}">${esc(m.text)}<small>${esc(fmtWhen(m.t))}${m.dir === "in" && m.origin ? " · " + esc(m.origin === "is" ? "Internet" : m.origin === "lora" ? "LoRa" : "VHF") : ""}`
+        + `${st[0] ? ` · <span class="${st[1]}">${esc(st[0])}</span>` : ""}</small></div>`;
+    }).join("") : `<p class="chart-empty">${esc(tt("Nessun messaggio con {p}.", { p: peer }))}</p>`;
+    const sc = $("thread").parentElement; sc.scrollTop = sc.scrollHeight;
+    if (who.write && list.some(m => m.dir === "in" && !m.read)) api("/api/messaggi/letti", { peer }).catch(() => {});
+  }
+  $("heardList").innerHTML = msgs.heard.length ? msgs.heard.map(h =>
+    `<li><span class="call">${esc(h.from)} → ${esc(h.to)}</span><time class="age">${esc(fmtHM(h.t))}</time><span class="last">${h.type === "ack" ? esc(tt("conferma")) : h.type === "rej" ? esc(tt("rifiuto")) : esc(h.text)}</span></li>`).join("")
+    : `<li class="empty" style="display:block">${esc(tt("Nessun messaggio sentito tra altre stazioni."))}</li>`;
+  $("blnList").innerHTML = msgs.bulletins.length ? msgs.bulletins.map(b =>
+    `<li><span class="call">${esc(b.from)} · ${esc(b.to)}</span><time class="age">${esc(fmtWhen(b.t))}</time><span class="last" style="white-space:normal">${esc(b.text)}</span></li>`).join("")
+    : `<li class="empty" style="display:block">${esc(tt("Nessun bollettino ricevuto."))}</li>`;
+  const calls = new Set([...by.keys(), ...[...stations.values()].filter(s => !s.data.object_name).map(s => s.data.id)]);
+  $("callList").innerHTML = [...calls].sort().map(c => `<option value="${esc(c)}">`).join("");
+}
+function openThread(p, focus) {
+  peer = p.toUpperCase(); msgView = "conv";
+  showTab("Msg");
+  const f = $("compose");
+  f.to.value = peer;
+  if (focus && !f.hidden) f.text.focus();
+}
+document.querySelector(".subtabs").addEventListener("click", e => {
+  const b = e.target.closest("[data-view]"); if (!b) return;
+  msgView = b.dataset.view; if (msgView !== "conv") peer = null; renderMessages();
+});
+$("convList").addEventListener("click", e => { const li = e.target.closest("[data-peer]"); if (li) openThread(li.dataset.peer); });
+$("convList").addEventListener("keydown", e => { const li = e.target.closest("[data-peer]"); if (li && e.key === "Enter") openThread(li.dataset.peer); });
+$("threadBack").addEventListener("click", () => { peer = null; $("compose").to.value = ""; renderMessages(); });
+$("threadMap").addEventListener("click", () => select(peer));
+const cleanText = s => s.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^\x20-\x7e]|[|~{]/g, "");
+$("compose").text.addEventListener("input", e => {
+  const c = cleanText(e.target.value);
+  if (c !== e.target.value) e.target.value = c;             // lettere accentate senza accento
+  $("cnt").textContent = `${e.target.value.length}/${MSG_MAX}`;
+});
+$("compose").text.addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("compose").requestSubmit(); } });
+$("compose").addEventListener("submit", async e => {
+  e.preventDefault();
+  const f = e.target, to = f.to.value.trim().toUpperCase(), text = f.text.value.trim();
+  if (!to || !text) return;
+  const btn = f.querySelector("button[type=submit]"); btn.disabled = true;
+  try {
+    await api("/api/messaggi", { to, text });
+    f.text.value = ""; $("cnt").textContent = `0/${MSG_MAX}`;
+    peer = to; await loadMessages(); renderMessages();
+  } catch (err) {
+    toast(err.message);
+  } finally { btn.disabled = false; }
+});
+
+// ---------------------------------------------------------------- avvisi
+let alerts = [], rules = null, alUnseen = 0, zoneLayer = L.layerGroup().addTo(map), zonePicking = false;
+const AL_ICON = { watch: "👁", zone_in: "⤵", zone_out: "⤴", emergency: "🆘", message: "✉" };
+async function loadAlerts() {
+  if (!features.alerts) return;
+  try { const a = await api("/api/avvisi"); alerts = a.alerts; rules = a.rules; } catch (e) { return; }
+  renderAlerts(); renderRules(); drawZones();
+}
+function renderAlerts() {
+  $("alerts").innerHTML = alerts.length ? alerts.map(a =>
+    `<li data-n="${a.n}" class="${a.level === "critical" ? "critical" : ""}" tabindex="0"><span class="ic" aria-hidden="true">${AL_ICON[a.kind] || "•"}</span>`
+    + `<span>${esc(a.text)}</span><time>${esc(fmtHM(a.t))}</time></li>`).join("")
+    : `<li class="empty" style="display:block;cursor:default">${esc(tt("Nessun avviso. Scegli le stazioni da osservare e le zone con il pulsante Regole."))}</li>`;
+  $("alClear").hidden = !alerts.length || !who.write;
+  $("alRulesBtn").hidden = false;
+  $("alNote").innerHTML = "";
+}
+$("alerts").addEventListener("click", e => {
+  const li = e.target.closest("[data-n]"); if (!li) return;
+  const a = alerts.find(x => String(x.n) === li.dataset.n); if (!a) return;
+  if (a.kind === "message") openThread(a.call);
+  else if (!select(a.call) && a.lat != null) map.flyTo([a.lat, a.lon], 13);
+});
+function beep(critical) {
+  if (!$("alSound").checked) return;
+  try {
+    const C = beep.c || (beep.c = new (window.AudioContext || window.webkitAudioContext)());
+    const notes = critical ? [880, 660, 880, 660] : [880, 1175];
+    notes.forEach((f, i) => {
+      const o = C.createOscillator(), g = C.createGain();
+      o.frequency.value = f; o.connect(g); g.connect(C.destination);
+      const t0 = C.currentTime + i * 0.18;
+      g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(0.25, t0 + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.16);
+      o.start(t0); o.stop(t0 + 0.17);
+    });
+  } catch (e) { /* audio non disponibile */ }
+}
+function onAlert(a) {
+  alerts.unshift(a); alerts.length = Math.min(alerts.length, 200);
+  renderAlerts();
+  if ($("paneAl").hidden) { alUnseen++; $("alBadge").textContent = String(alUnseen); }
+  toast(a.text, a.level !== "info");
+  beep(a.level === "critical");
+  try {
+    if (window.Notification && Notification.permission === "granted" && document.hidden)
+      new Notification("APRS Master", { body: a.text, icon: "/icona-256.png", tag: "aprs-" + a.n });
+  } catch (e) { /* notifiche non disponibili */ }
+}
+$("alSound").checked = store.get("suono", "1") === "1";
+$("alSound").addEventListener("change", () => store.set("suono", $("alSound").checked ? "1" : "0"));
+$("alNotify").addEventListener("click", async () => {
+  if (!window.Notification) { toast(tt("Questo browser non ha le notifiche.")); return; }
+  const p = await Notification.requestPermission();
+  toast(p === "granted" ? tt("Notifiche attive: gli avvisi arrivano anche con la pagina in secondo piano.") : tt("Notifiche non consentite dal browser."));
+  $("alNotify").hidden = p === "granted";
+});
+if (window.Notification && Notification.permission === "granted") $("alNotify").hidden = true;
+$("alRulesBtn").addEventListener("click", () => {
+  const open = $("rules").hidden;
+  $("rules").hidden = !open;
+  $("alRulesBtn").setAttribute("aria-expanded", String(open));
+  if (open) renderRules();
+});
+$("alClear").addEventListener("click", async () => {
+  try { await api("/api/avvisi/cancella", {}); alerts = []; renderAlerts(); } catch (e) { toast(e.message); }
+});
+
+let draftZones = [];
+function renderRules() {
+  if (!rules) return;
+  const f = $("rules");
+  f.watch.value = rules.watch.join(", ");
+  f.quiet_min.value = rules.quiet_min;
+  f.emergency.checked = rules.emergency;
+  f.messages.checked = rules.messages;
+  draftZones = rules.zones.map(z => ({ ...z, calls: (z.calls || []).join(", ") }));
+  renderZones();
+  const ro = !who.write;
+  f.querySelectorAll("input, button").forEach(el => { el.disabled = ro; });
+  $("rulesMsg").innerHTML = ro ? writeNote(tt("cambiare le regole")) : "";
+}
+function renderZones() {
+  $("zones").innerHTML = draftZones.length ? draftZones.map((z, i) => `<div class="zone" data-i="${i}">
+      <input type="text" data-f="name" value="${esc(z.name)}" maxlength="40" aria-label="${esc(tt("Nome della zona"))}" placeholder="${esc(tt("Nome"))}">
+      <input type="number" data-f="radius_km" value="${z.radius_km}" min="0.1" step="0.1" aria-label="${esc(tt("Raggio in km"))}" title="${esc(tt("Raggio in km"))}">
+      <button type="button" data-del="${i}" aria-label="${esc(tt("Togli la zona"))}">×</button>
+      <input type="text" data-f="calls" value="${esc(z.calls)}" placeholder="${esc(tt("Solo queste stazioni (vuoto = tutte)"))}" aria-label="${esc(tt("Stazioni della zona"))}">
+      <span class="zc">${z.lat.toFixed(4)}, ${z.lon.toFixed(4)} · ${esc(tt("raggio {r} km", { r: num(z.radius_km) }))}</span></div>`).join("")
+    : `<small>${esc(tt("Nessuna zona."))}</small>`;
+  drawZones(draftZones);
+}
+function drawZones(list) {
+  zoneLayer.clearLayers();
+  for (const z of list || (rules ? rules.zones : [])) {
+    L.circle([z.lat, z.lon], { radius: z.radius_km * 1000, color: "#b5432f", weight: 2, dashArray: "4 6", fillOpacity: .04, interactive: false }).addTo(zoneLayer);
+    L.marker([z.lat, z.lon], { interactive: false, icon: L.divIcon({ className: "", html: `<div class="mk"><span class="lbl" style="border-color:#b5432f">${esc(z.name)}</span></div>`, iconAnchor: [0, 10] }) }).addTo(zoneLayer);
+  }
+}
+$("zones").addEventListener("input", e => {
+  const box = e.target.closest("[data-i]"); if (!box) return;
+  const z = draftZones[Number(box.dataset.i)], f = e.target.dataset.f;
+  z[f] = f === "radius_km" ? Number(e.target.value) || z.radius_km : e.target.value;
+  if (f === "radius_km") { drawZones(draftZones); box.querySelector(".zc").textContent = `${z.lat.toFixed(4)}, ${z.lon.toFixed(4)} · ${tt("raggio {r} km", { r: num(z.radius_km) })}`; }
+});
+$("zones").addEventListener("click", e => { const b = e.target.closest("[data-del]"); if (b) { draftZones.splice(Number(b.dataset.del), 1); renderZones(); } });
+$("zoneAdd").addEventListener("click", () => { zonePicking = true; $("zonePickHint").hidden = false; $("map").classList.add("picking"); });
+$("zonePickCancel").addEventListener("click", () => { zonePicking = false; $("zonePickHint").hidden = true; $("map").classList.remove("picking"); });
+map.on("click", e => {
+  if (!zonePicking) return;
+  zonePicking = false; $("zonePickHint").hidden = true; $("map").classList.remove("picking");
+  draftZones.push({ name: tt("Zona {n}", { n: draftZones.length + 1 }), lat: +e.latlng.lat.toFixed(5), lon: +e.latlng.lng.toFixed(5), radius_km: 5, calls: "" });
+  renderZones();
+  const inp = $("zones").querySelector(`[data-i="${draftZones.length - 1}"] input`); if (inp) inp.select();
+});
+$("rules").addEventListener("submit", async e => {
+  e.preventDefault();
+  const f = e.target;
+  const body = { watch: f.watch.value, quiet_min: Number(f.quiet_min.value) || 30, emergency: f.emergency.checked, messages: f.messages.checked,
+                 zones: draftZones.map(z => ({ name: z.name, lat: z.lat, lon: z.lon, radius_km: z.radius_km, calls: z.calls })) };
+  try { rules = await api("/api/avvisi", body); renderRules(); $("rulesMsg").textContent = tt("Regole salvate."); }
+  catch (err) { $("rulesMsg").textContent = err.status === 401 || err.status === 403 ? tt("Accesso negato.") : err.message; }
+});
+
+// ---------------------------------------------------------------- scelta posizione
+const params = new URLSearchParams(location.search);
+const tema = params.get("tema");
+if (tema === "scuro" || tema === "chiaro") document.documentElement.dataset.theme = tema === "scuro" ? "dark" : "light";
+
+let picking = false, pickMarker = null, picked = null;
+function toLocator(lat, lon) {
+  const U = "ABCDEFGHIJKLMNOPQR", L2 = "abcdefghijklmnopqrstuvwx";
+  let x = Math.min(lon + 180, 359.99999), y = Math.min(lat + 90, 179.99999);
+  let s = U[Math.floor(x / 20)] + U[Math.floor(y / 10)];
+  x %= 20; y %= 10;
+  s += Math.floor(x / 2) + "" + Math.floor(y);
+  x %= 2; y %= 1;
+  return s + L2[Math.floor(x * 12)] + L2[Math.floor(y * 24)];
+}
+function fromLocator(q) {
+  const s = q.trim().toUpperCase();
+  if (!/^[A-R]{2}\d{2}([A-X]{2}(\d{2})?)?$/.test(s)) return null;
+  let lon = (s.charCodeAt(0) - 65) * 20 - 180 + Number(s[2]) * 2;
+  let lat = (s.charCodeAt(1) - 65) * 10 - 90 + Number(s[3]);
+  let w = 2, h = 1, zoom = 9;
+  if (s.length >= 6) { w = 2 / 24; h = 1 / 24; zoom = 13; lon += (s.charCodeAt(4) - 65) * w; lat += (s.charCodeAt(5) - 65) * h; }
+  if (s.length === 8) { w /= 10; h /= 10; zoom = 16; lon += Number(s[6]) * w; lat += Number(s[7]) * h; }
+  return { lat: lat + h / 2, lon: lon + w / 2, zoom };
+}
+function parseCoords(q) {
+  let m = q.trim().match(/^(-?\d+(?:\.\d+)?)\s*[,;\s]\s*(-?\d+(?:\.\d+)?)$/);
+  if (!m) {                       // formato italiano: 44,494 11,343
+    m = q.trim().match(/^(-?\d+,\d+)\s+(-?\d+,\d+)$/);
+    if (m) m = [m[0], m[1].replace(",", "."), m[2].replace(",", ".")];
+  }
+  if (!m) return null;
+  const lat = Number(m[1]), lon = Number(m[2]);
+  return Math.abs(lat) <= 90 && Math.abs(lon) <= 180 ? { lat, lon } : null;
+}
+function pickMsg(text) { $("pickMsg").textContent = text || ""; }
+function setPick(lat, lon, zoom) {
+  picked = [Number(lat.toFixed(6)), Number(lon.toFixed(6))];
+  if (!pickMarker) {
+    pickMarker = L.marker(picked, { draggable: true, keyboard: false,
+      icon: L.divIcon({ className: "", html: '<div class="pick-mk"></div>', iconSize: [26, 26], iconAnchor: [13, 13] }) }).addTo(map);
+    pickMarker.on("dragend", () => { const p = pickMarker.getLatLng(); setPick(p.lat, p.lng); });
+  } else pickMarker.setLatLng(picked);
+  if (zoom) map.flyTo(picked, zoom, { duration: .8 });
+  $("pickCoords").textContent = `${picked[0].toFixed(5)}, ${picked[1].toFixed(5)}`;
+  $("pickLoc").textContent = toLocator(picked[0], picked[1]);
+  $("pickOk").disabled = false;
+}
+function startPick() {
+  picking = true;
+  $("pick").hidden = false;
+  $("map").classList.add("picking");
+  if (home) { setPick(home[0], home[1]); map.setView(home, 13); }
+  $("pickQ").focus();
+}
+function endPick(message) {
+  picking = false;
+  $("pick").hidden = true;
+  $("map").classList.remove("picking");
+  if (pickMarker) { pickMarker.remove(); pickMarker = null; }
+  picked = null;
+  params.delete("scegli");
+  const qs = params.toString();
+  history.replaceState(null, "", location.pathname + (qs ? "?" + qs : "") + location.hash);
+  if (message) toast(message);
+}
+async function searchPlace(q) {
+  const ul = $("pickResults");
+  ul.replaceChildren();
+  pickMsg("");
+  if (!q.trim()) return;
+  const c = parseCoords(q);
+  if (c) { setPick(c.lat, c.lon, 14); return; }
+  const loc = fromLocator(q);
+  if (loc) { setPick(loc.lat, loc.lon, loc.zoom); pickMsg(tt("Centro del quadrato {q}.", { q: q.trim().toUpperCase() })); return; }
+  pickMsg(tt("Ricerca in corso…"));
+  try {
+    const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=6&accept-language=${LANG}&q=` + encodeURIComponent(q);
+    const res = await fetch(url, { headers: { Accept: "application/json" } });
+    if (!res.ok) throw new Error(res.status);
+    const items = await res.json();
+    if (!items.length) { pickMsg(tt("Nessun risultato. Prova con un nome più preciso o con le coordinate.")); return; }
+    pickMsg("");
+    for (const it of items) {
+      const li = document.createElement("li"), b = document.createElement("button");
+      b.type = "button";
+      b.textContent = it.display_name;           // testo esterno: mai come HTML
+      b.addEventListener("click", () => {
+        setPick(Number(it.lat), Number(it.lon));
+        const bb = it.boundingbox.map(Number);
+        map.flyToBounds([[bb[0], bb[2]], [bb[1], bb[3]]], { maxZoom: 15, duration: .8 });
+        ul.replaceChildren();
+      });
+      li.append(b); ul.append(li);
+    }
+    if (items.length === 1) ul.querySelector("button").click();
+  } catch (e) {
+    pickMsg(tt("Ricerca non riuscita: controlla la connessione a Internet, oppure fai clic sulla mappa."));
+  }
+}
+$("pickSearch").addEventListener("submit", e => { e.preventDefault(); searchPlace($("pickQ").value); });
+$("pickCancel").addEventListener("click", () => endPick());
+$("pickGeo").addEventListener("click", () => {
+  if (!navigator.geolocation) { pickMsg(tt("Il browser non fornisce la posizione.")); return; }
+  pickMsg(tt("Richiesta della posizione al browser…"));
+  navigator.geolocation.getCurrentPosition(
+    p => { pickMsg(tt("Precisione circa {m} m.", { m: Math.round(p.coords.accuracy) })); setPick(p.coords.latitude, p.coords.longitude, 15); },
+    () => pickMsg(tt("Posizione non disponibile: consenti l'accesso nel browser o scegli il punto sulla mappa.")),
+    { enableHighAccuracy: true, timeout: 15000 });
+});
+$("pickOk").addEventListener("click", async () => {
+  if (!picked) return;
+  $("pickOk").disabled = true;
+  try {
+    await api("/api/home", { lat: picked[0], lon: picked[1] });
+    endPick(tt("Posizione ricevente impostata: {c}", { c: $("pickCoords").textContent }));
+  } catch (e) {
+    pickMsg(e.status === 401 || e.status === 403 ? tt("La posizione si può impostare solo dal computer su cui gira il ricevitore (o con la password del pannello).")
+      : e.status ? tt("Coordinate non accettate dal ricevitore.") : tt("Ricevitore non raggiungibile: controlla che il programma sia in esecuzione."));
+  } finally {
+    $("pickOk").disabled = !picked;
+  }
+});
+map.on("click", e => { if (picking) setPick(e.latlng.lat, e.latlng.lng); });
+document.addEventListener("keydown", e => {
+  if (e.key !== "Escape") return;
+  if (picking) endPick();
+  else if (zonePicking) $("zonePickCancel").click();
+});
+
+// ---------------------------------------------------------------- avvio e aggiornamenti in diretta
+async function init() {
+  try {
+    const l = await api("/api/lingua" + (params.get("lang") ? "?lang=" + encodeURIComponent(params.get("lang")) : ""));
+    TR = l.dict || {}; LANG = l.lang || "it"; LOC = LANG === "it" ? "it-IT" : "en-GB";
+  } catch (e) { /* resta in italiano */ }
+  translateDom();
+  $("rpSpeed").innerHTML = speeds().map(([v, t]) => `<option value="${v}">${esc(t)}</option>`).join("");
+  buildFilters();
+  applyLabels();
+  let st;
+  try { st = await api("/api/state"); }
+  catch (e) { setTiles(null); throw e; }
+  try { who = await api("/api/whoami"); } catch (e) { /* solo lettura */ }
+  setTiles(st.tiles);
+  hasHistory = !!st.history;
+  features = st.features || {};
+  $("tabMsg").hidden = !features.messages;
+  $("tabAl").hidden = !features.alerts;
+  $("covBtn").hidden = !hasHistory;
+  stationInfo = st.station_info || null;
+  setHome(st.home);
+  st.stations.forEach(d => upsert(d, false));
+  st.log.forEach(addLog);
+  $("nPackets").textContent = st.total;
+  renderList();
+  if (stations.size || home) { fitAll(); fitted = true; }
+  await Promise.all([loadMessages(), loadAlerts()]);
+  selectFromHash();
+  window.addEventListener("hashchange", selectFromHash);
+  if (params.has("scegli")) startPick();
+
+  const es = new EventSource("/events");
+  es.onopen = () => { $("dot").classList.add("on"); $("conn").textContent = tt("In ascolto"); };
+  es.onerror = () => { $("dot").classList.remove("on"); $("conn").textContent = tt("Server non raggiungibile, riprovo"); };
+  es.onmessage = ev => {
+    const m = JSON.parse(ev.data);
+    if (m.reset) { resetAll(); return; }
+    if (m.reload) { location.reload(); return; }
+    if (m.tiles) { setTiles(m.tiles); return; }
+    if (m.station_info) { stationInfo = m.station_info; setHome(home); return; }
+    if ("home" in m) { setHome(m.home); renderList(); return; }
+    if (m.msg_event) { loadMessages(); return; }
+    if (m.alert) { onAlert(m.alert); return; }
+    if (m.alert_rules) { rules = m.alert_rules; if ($("rules").hidden) renderRules(); drawZones(); return; }
+    if (m.alerts_cleared) { alerts = []; renderAlerts(); return; }
+    if (m.panel || m.unread !== undefined && !m.packet) return;
+    if (!m.packet) return;
+    $("nPackets").textContent = m.total;
+    addLog(m.packet);
+    if (m.station) {
+      upsert(m.station, true);
+      if (!fitted) { fitAll(); fitted = true; }
+      if (!replay.on) renderList();
+    }
+    if (m.weather && wxId === m.weather.id && !$("wxp").hidden) openWx(wxId);
+    if (m.telemetry && tlmId === m.telemetry.id && !$("tlmp").hidden) openTlm(tlmId);
+  };
+}
+init().catch(() => { $("conn").textContent = tt("Server non raggiungibile: avvia il programma di ricezione"); });
+</script>
+</body>
+</html>

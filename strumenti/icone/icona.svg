@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- APRS Master by IZ2LPN op. Giorgio - icona del programma. GPL-3.0-or-later -->
+  <defs>
+    <linearGradient id="fondo" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#253a45"/>
+      <stop offset="1" stop-color="#142027"/>
+    </linearGradient>
+    <linearGradient id="pin" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f4bd3c"/>
+      <stop offset="1" stop-color="#d98e15"/>
+    </linearGradient>
+  </defs>
+  <rect x="16" y="16" width="480" height="480" rx="108" fill="url(#fondo)" stroke="#46636f" stroke-width="6"/>
+  <g fill="none" stroke="#2f4855" stroke-width="7" stroke-linecap="round" opacity=".9">
+    <path d="M40 392 C120 352 168 420 248 404 S392 330 472 366"/>
+    <path d="M40 440 C132 404 188 470 272 450 S404 392 472 420"/>
+    <path d="M58 318 C110 300 150 340 196 326"/>
+    <path d="M330 300 C380 286 430 310 472 296"/>
+  </g>
+  <g fill="none" stroke="#e8efec" stroke-linecap="round">
+    <path d="M180.9 165.9 A122 122 0 0 1 331.1 165.9" stroke-width="22" opacity="1"/>
+    <path d="M152.6 129.6 A168 168 0 0 1 359.4 129.6" stroke-width="22" opacity="0.72"/>
+    <path d="M124.2 93.4 A214 214 0 0 1 387.8 93.4" stroke-width="22" opacity="0.45"/>
+  </g>
+  <path d="M256.0 424.0 L185.3 303.5 A82 82 0 1 1 326.7 303.5 Z" fill="url(#pin)"/>
+  <circle cx="256" cy="262" r="30" fill="#172329"/>
+</svg>

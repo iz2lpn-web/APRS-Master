@@ -1,0 +1,22 @@
+/* Geopin - grafici (grafici.js): colori validati per chi distingue male i colori, in chiaro e in scuro */
+:root { --c1: #2459a6; --c2: #c07a12; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --c1: #4a86d8; --c2: #c4841a; } }
+:root[data-theme="dark"] { --c1: #4a86d8; --c2: #c4841a; }
+.chart-box { position: relative; width: 100%; }
+.chart { display: block; overflow: visible; font: 11.5px/1 var(--font, system-ui, sans-serif); }
+.chart .grid { stroke: var(--line); stroke-width: 1; }
+.chart .zero { stroke: var(--muted); stroke-width: 1; }
+.chart .ax { fill: var(--muted); font-variant-numeric: tabular-nums; }
+.chart .lg { fill: var(--ink); }
+.chart .line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.chart .stroke-c1 { stroke: var(--c1); } .chart .stroke-c2 { stroke: var(--c2); }
+.chart .fill-c1, .chart-tip .fill-c1 { fill: var(--c1); background: var(--c1); }
+.chart .fill-c2, .chart-tip .fill-c2 { fill: var(--c2); background: var(--c2); }
+.chart .dot { stroke: var(--panel, #fff); stroke-width: 2; }
+.chart .cross { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 3; }
+.chart-tip { position: absolute; pointer-events: none; background: var(--panel, #fff); color: var(--ink); border: 1px solid var(--line);
+  border-radius: 4px; padding: 5px 8px; font-size: .85rem; line-height: 1.35; box-shadow: 0 2px 8px rgba(0,0,0,.2); white-space: nowrap; z-index: 5; }
+.chart-tip b { display: block; font-weight: 600; }
+.chart-tip span { display: flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; }
+.chart-tip i { width: 10px; height: 3px; border-radius: 1.5px; display: inline-block; }
+.chart-empty { color: var(--muted); margin: 6px 0; font-size: .92rem; }

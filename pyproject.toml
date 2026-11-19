@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aprs-mappa"
+dynamic = ["version"]
+description = "Ricevitore APRS (AFSK 1200 baud) con mappa OpenStreetMap e pannello di controllo"
+readme = "README.md"
+license = "GPL-3.0-or-later"
+license-files = ["LICENSE"]
+authors = [{ name = "IZ2LPN op. Giorgio" }]
+requires-python = ">=3.9"
+dependencies = [
+    "numpy>=1.22",
+    "sounddevice>=0.4",
+    "pyserial>=3.4",
+    "certifi>=2023.7.22",
+]
+keywords = ["aprs", "ax25", "afsk", "radioamatori", "ham radio", "openstreetmap"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+    "Topic :: Communications :: Ham Radio",
+    "Natural Language :: Italian",
+]
+
+[project.scripts]
+aprs-mappa = "aprs_mappa.main:main"
+
+[project.gui-scripts]
+aprs-mappa-gui = "aprs_mappa.gui:main"
+
+[tool.setuptools]
+packages = ["aprs_mappa"]
+
+[tool.setuptools.package-data]
+aprs_mappa = ["static/*.html", "static/*.svg", "static/*.png", "static/*.js", "static/*.css", "static/leaflet/*",
+              "static/markercluster/*"]
+
+[tool.setuptools.dynamic]
+version = { attr = "aprs_mappa.__version__" }
